@@ -1,7 +1,4 @@
 {
   "name": "ops-platform",
-  "version": "1.0.0",
-  "scripts": {
-    "vercel-build": "cd frontend && npm install && npm run build"
-  }
+  "version": "1.0.0"
 }
