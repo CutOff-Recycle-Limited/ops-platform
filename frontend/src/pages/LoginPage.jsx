@@ -29,27 +29,22 @@ export default function LoginPage() {
     <div className="min-h-screen flex" style={{ fontFamily: 'Mulish, sans-serif' }}>
       {/* Left panel — brand */}
       <div className="hidden lg:flex w-1/2 bg-[#50ad32] flex-col justify-between p-12 relative overflow-hidden">
-        {/* Background pattern */}
+        {/* Background circles */}
         <div className="absolute inset-0 opacity-10">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute rounded-full border-4 border-white"
-              style={{
-                width: `${(i + 2) * 80}px`,
-                height: `${(i + 2) * 80}px`,
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-              }}
-            />
+            <div key={i} className="absolute rounded-full border-4 border-white"
+              style={{ width: `${(i + 2) * 80}px`, height: `${(i + 2) * 80}px`, top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
           ))}
         </div>
 
-        <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg">
-  <img src="/cr-logo.png" alt="CutOff Recycle" className="w-12 h-12" />
-</div>
+        {/* Logo */}
+        <div className="relative z-10">
+          <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg">
+            <img src="/cr-logo.png" alt="CutOff Recycle" className="w-12 h-12" />
+          </div>
+        </div>
 
+        {/* Content */}
         <div className="relative z-10">
           <h1 className="text-5xl font-black text-white leading-tight mb-4">
             CutOff Recycle<br />Operations Hub
@@ -57,7 +52,6 @@ export default function LoginPage() {
           <p className="text-white/80 text-lg font-medium leading-relaxed max-w-sm">
             Manage production, track tasks, coordinate your team — all in one place.
           </p>
-
           <div className="mt-10 grid grid-cols-3 gap-4">
             {[
               { label: 'Hair Recycled', value: '4+ Tons' },
@@ -84,7 +78,9 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center gap-3 mb-8">
-            <img src="/cr-logo.png" alt="CutOff Recycle" className="w-10 h-10" />
+            <div className="w-10 h-10 rounded-full bg-[#50ad32] flex items-center justify-center">
+              <img src="/cr-logo.png" alt="CR" className="w-8 h-8" />
+            </div>
             <div>
               <p className="font-black text-[#1a1a1a] text-lg leading-tight">CutOff Recycle</p>
               <p className="text-[#50ad32] text-xs font-bold">Operations Hub</p>
@@ -112,61 +108,32 @@ export default function LoginPage() {
             {mode === 'register' && (
               <div>
                 <label className="label">Full Name</label>
-                <input
-                  className="input"
-                  placeholder="e.g. Mercy Alfayo"
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  required
-                />
+                <input className="input" placeholder="Your full name"
+                  value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
               </div>
             )}
-
             <div>
               <label className="label">Work Email</label>
-              <input
-                className="input"
-                type="email"
-                placeholder="you@cutoffrecycle.co.tz"
-                value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                required
-              />
+              <input className="input" type="email" placeholder="you@cutoffrecycle.co.tz"
+                value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
             </div>
-
             <div>
               <label className="label">Password</label>
-              <input
-                className="input"
-                type="password"
-                placeholder="••••••••"
-                value={form.password}
-                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                required
-                minLength={6}
-              />
+              <input className="input" type="password" placeholder="••••••••"
+                value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required minLength={6} />
             </div>
-
             {mode === 'register' && (
               <div>
                 <label className="label">Role</label>
-                <select
-                  className="input"
-                  value={form.role}
-                  onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-                >
+                <select className="input" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
                   <option value="member">Team Member</option>
                   <option value="manager">Manager</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
             )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full py-3 flex items-center justify-center gap-2 mt-2 text-base"
-            >
+            <button type="submit" disabled={loading}
+              className="btn-primary w-full py-3 flex items-center justify-center gap-2 mt-2 text-base">
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
               ) : (
@@ -182,13 +149,15 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-500 font-medium">
-              {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-              <button
-                onClick={() => { setMode(m => m === 'login' ? 'register' : 'login'); setError(''); }}
-                className="text-[#50ad32] hover:text-[#459a2a] font-bold transition-colors"
-              >
-                {mode === 'login' ? 'Sign up' : 'Sign in'}
-              </button>
+              {mode === 'login' ? "Need access? " : 'Already have an account? '}
+              {mode === 'login' ? (
+                <span className="text-gray-400">Contact your admin for an invite link.</span>
+              ) : (
+                <button onClick={() => { setMode('login'); setError(''); }}
+                  className="text-[#50ad32] hover:text-[#459a2a] font-bold transition-colors">
+                  Sign in
+                </button>
+              )}
             </p>
           </div>
 
