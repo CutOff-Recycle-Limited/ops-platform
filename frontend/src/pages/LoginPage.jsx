@@ -46,9 +46,9 @@ export default function LoginPage() {
           ))}
         </div>
 
-        <div className="relative z-10">
-          <img src="/cr-logo.png" alt="CutOff Recycle" className="w-16 h-16 filter brightness-0 invert" />
-        </div>
+        <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg">
+  <img src="/cr-logo.png" alt="CutOff Recycle" className="w-12 h-12" />
+</div>
 
         <div className="relative z-10">
           <h1 className="text-5xl font-black text-white leading-tight mb-4">
