@@ -5,15 +5,17 @@ import LoginPage from './pages/LoginPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import OperationsPage from './pages/OperationsPage.jsx';
 import KanbanPage from './pages/KanbanPage.jsx';
+import UsersPage from './pages/UsersPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
+import JoinPage from './pages/JoinPage.jsx';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return (
-    <div className="h-screen flex items-center justify-center bg-surface">
+    <div className="h-screen flex items-center justify-center bg-[#f4f7f4]">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-        <span className="text-slate-500 text-sm">Loading...</span>
+        <img src="/cr-logo.png" alt="CR" className="w-12 h-12 animate-pulse" />
+        <div className="w-6 h-6 border-2 border-[#50ad32] border-t-transparent rounded-full animate-spin" />
       </div>
     </div>
   );
@@ -34,11 +36,13 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+          <Route path="/join" element={<JoinPage />} />
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="operations" element={<OperationsPage />} />
             <Route path="operations/:id" element={<KanbanPage />} />
+            <Route path="users" element={<UsersPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>

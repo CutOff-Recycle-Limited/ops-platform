@@ -7,6 +7,7 @@ const opsCtrl = require('../controllers/operations.controller');
 const tasksCtrl = require('../controllers/tasks.controller');
 const commentsCtrl = require('../controllers/comments.controller');
 const dashCtrl = require('../controllers/dashboard.controller');
+const usersCtrl = require('../controllers/users.controller');
 
 // ─── Auth ────────────────────────────────────────────────────────
 router.post('/auth/register', authCtrl.register);
@@ -30,7 +31,6 @@ router.delete('/operations/:id/members/:userId', authenticate, requireOperationA
 router.get('/operations/:operationId/tasks', authenticate, requireOperationAccess, tasksCtrl.list);
 router.post('/operations/:operationId/tasks', authenticate, requireOperationAccess, tasksCtrl.create);
 router.get('/operations/:operationId/workflow', authenticate, requireOperationAccess, tasksCtrl.getWorkflow);
-
 router.get('/tasks/:id', authenticate, tasksCtrl.getOne);
 router.put('/tasks/:id', authenticate, tasksCtrl.update);
 router.patch('/tasks/:id/transition', authenticate, tasksCtrl.transition);
@@ -40,5 +40,13 @@ router.delete('/tasks/:id', authenticate, tasksCtrl.remove);
 router.post('/tasks/:taskId/comments', authenticate, commentsCtrl.create);
 router.put('/comments/:id', authenticate, commentsCtrl.update);
 router.delete('/comments/:id', authenticate, commentsCtrl.remove);
+
+// ─── Users & Invites ─────────────────────────────────────────────
+router.get('/users', authenticate, usersCtrl.list);
+router.put('/users/:id/role', authenticate, requireAdmin, usersCtrl.updateRole);
+router.delete('/users/:id', authenticate, requireAdmin, usersCtrl.remove);
+router.post('/invites', authenticate, usersCtrl.createInvite);
+router.get('/invites', authenticate, usersCtrl.listInvites);
+router.post('/invites/validate', usersCtrl.validateInvite);
 
 module.exports = router;

@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth.jsx';
 
 export default function LoginPage() {
   const { login, register } = useAuth();
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [mode, setMode] = useState('login');
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'member' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,42 +26,84 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-accent/5 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-accent/5 blur-3xl" />
-        <div className="absolute inset-0" style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)',
-          backgroundSize: '32px 32px'
-        }} />
-      </div>
+    <div className="min-h-screen flex" style={{ fontFamily: 'Mulish, sans-serif' }}>
+      {/* Left panel — brand */}
+      <div className="hidden lg:flex w-1/2 bg-[#50ad32] flex-col justify-between p-12 relative overflow-hidden">
+        {/* Background pattern */}
+        <div className="absolute inset-0 opacity-10">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="absolute rounded-full border-4 border-white"
+              style={{
+                width: `${(i + 2) * 80}px`,
+                height: `${(i + 2) * 80}px`,
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+              }}
+            />
+          ))}
+        </div>
 
-      <div className="w-full max-w-sm relative animate-slide-up">
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center shadow-lg shadow-accent/30">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">OPS Platform</h1>
-            <p className="text-xs text-slate-500">Operations Management</p>
+        <div className="relative z-10">
+          <img src="/cr-logo.png" alt="CutOff Recycle" className="w-16 h-16 filter brightness-0 invert" />
+        </div>
+
+        <div className="relative z-10">
+          <h1 className="text-5xl font-black text-white leading-tight mb-4">
+            CutOff Recycle<br />Operations Hub
+          </h1>
+          <p className="text-white/80 text-lg font-medium leading-relaxed max-w-sm">
+            Manage production, track tasks, coordinate your team — all in one place.
+          </p>
+
+          <div className="mt-10 grid grid-cols-3 gap-4">
+            {[
+              { label: 'Hair Recycled', value: '4+ Tons' },
+              { label: 'Weekly Output', value: '200 L' },
+              { label: 'Team Members', value: '8+' },
+            ].map(stat => (
+              <div key={stat.label} className="bg-white/15 rounded-xl p-4 backdrop-blur-sm">
+                <p className="text-white font-black text-xl">{stat.value}</p>
+                <p className="text-white/70 text-xs font-semibold mt-1">{stat.label}</p>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Card */}
-        <div className="card p-6 shadow-2xl">
-          <h2 className="text-lg font-semibold text-white mb-1">
-            {mode === 'login' ? 'Welcome back' : 'Create account'}
-          </h2>
-          <p className="text-sm text-slate-400 mb-6">
-            {mode === 'login' ? 'Sign in to your workspace' : 'Join your team on OPS Platform'}
+        <div className="relative z-10">
+          <p className="text-white/60 text-xs font-medium">
+            Human Hair Waste Recycling · Arusha, Tanzania
           </p>
+        </div>
+      </div>
+
+      {/* Right panel — form */}
+      <div className="flex-1 flex items-center justify-center bg-[#f4f7f4] p-8">
+        <div className="w-full max-w-md">
+          {/* Mobile logo */}
+          <div className="flex lg:hidden items-center gap-3 mb-8">
+            <img src="/cr-logo.png" alt="CutOff Recycle" className="w-10 h-10" />
+            <div>
+              <p className="font-black text-[#1a1a1a] text-lg leading-tight">CutOff Recycle</p>
+              <p className="text-[#50ad32] text-xs font-bold">Operations Hub</p>
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <h2 className="text-3xl font-black text-[#1a1a1a]">
+              {mode === 'login' ? 'Welcome back' : 'Join the team'}
+            </h2>
+            <p className="text-gray-500 mt-1 font-medium">
+              {mode === 'login'
+                ? 'Sign in to your workspace to continue'
+                : 'Create your account to get started'}
+            </p>
+          </div>
 
           {error && (
-            <div className="mb-4 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+            <div className="mb-5 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm font-semibold">
               {error}
             </div>
           )}
@@ -72,7 +114,7 @@ export default function LoginPage() {
                 <label className="label">Full Name</label>
                 <input
                   className="input"
-                  placeholder="David Denis"
+                  placeholder="e.g. Mercy Alfayo"
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   required
@@ -81,11 +123,11 @@ export default function LoginPage() {
             )}
 
             <div>
-              <label className="label">Email</label>
+              <label className="label">Work Email</label>
               <input
                 className="input"
                 type="email"
-                placeholder="you@company.com"
+                placeholder="you@cutoffrecycle.co.tz"
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 required
@@ -113,7 +155,7 @@ export default function LoginPage() {
                   value={form.role}
                   onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
                 >
-                  <option value="member">Member</option>
+                  <option value="member">Team Member</option>
                   <option value="manager">Manager</option>
                   <option value="admin">Admin</option>
                 </select>
@@ -123,33 +165,39 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full flex items-center justify-center gap-2 py-2.5 mt-2"
+              className="btn-primary w-full py-3 flex items-center justify-center gap-2 mt-2 text-base"
             >
               {loading ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
               ) : (
-                mode === 'login' ? 'Sign In' : 'Create Account'
+                <>
+                  {mode === 'login' ? 'Sign In' : 'Create Account'}
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </>
               )}
             </button>
           </form>
 
-          <div className="mt-5 pt-4 border-t border-surface-border text-center">
-            <p className="text-sm text-slate-500">
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-500 font-medium">
               {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
               <button
                 onClick={() => { setMode(m => m === 'login' ? 'register' : 'login'); setError(''); }}
-                className="text-accent-light hover:text-white transition-colors font-medium"
+                className="text-[#50ad32] hover:text-[#459a2a] font-bold transition-colors"
               >
                 {mode === 'login' ? 'Sign up' : 'Sign in'}
               </button>
             </p>
           </div>
-        </div>
 
-        {/* Demo hint */}
-        <p className="text-center text-xs text-slate-600 mt-4">
-          Demo: admin@ops.com / password123
-        </p>
+          <div className="mt-10 pt-6 border-t border-gray-200 text-center">
+            <p className="text-xs text-gray-400 font-medium">
+              © {new Date().getFullYear()} CutOff Recycle Limited · Arusha, Tanzania
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

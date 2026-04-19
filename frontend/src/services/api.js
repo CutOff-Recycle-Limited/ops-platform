@@ -12,24 +12,17 @@ async function request(path, options = {}) {
     ...options.headers,
   };
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
-
+  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
     const err = new Error(data.error || `Request failed: ${res.status}`);
     err.status = res.status;
-    err.data = data;
     throw err;
   }
-
   return data;
 }
 
-// ─── Auth ────────────────────────────────────────────────────────
 export const auth = {
   login: (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   register: (data) => request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
@@ -37,7 +30,6 @@ export const auth = {
   users: () => request('/auth/users'),
 };
 
-// ─── Operations ──────────────────────────────────────────────────
 export const operations = {
   list: () => request('/operations'),
   get: (id) => request(`/operations/${id}`),
@@ -49,7 +41,6 @@ export const operations = {
   getWorkflow: (id) => request(`/operations/${id}/workflow`),
 };
 
-// ─── Tasks ───────────────────────────────────────────────────────
 export const tasks = {
   list: (operationId, params = {}) => {
     const qs = new URLSearchParams(params).toString();
@@ -62,14 +53,24 @@ export const tasks = {
   delete: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
 };
 
-// ─── Comments ────────────────────────────────────────────────────
 export const comments = {
   create: (taskId, content) => request(`/tasks/${taskId}/comments`, { method: 'POST', body: JSON.stringify({ content }) }),
   update: (id, content) => request(`/comments/${id}`, { method: 'PUT', body: JSON.stringify({ content }) }),
   delete: (id) => request(`/comments/${id}`, { method: 'DELETE' }),
 };
 
-// ─── Dashboard ───────────────────────────────────────────────────
 export const dashboard = {
   get: () => request('/dashboard'),
+};
+
+export const users = {
+  list: () => request('/users'),
+  updateRole: (id, role) => request(`/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+  delete: (id) => request(`/users/${id}`, { method: 'DELETE' }),
+};
+
+export const invites = {
+  create: (role) => request('/invites', { method: 'POST', body: JSON.stringify({ role }) }),
+  list: () => request('/invites'),
+  validate: (token) => request('/invites/validate', { method: 'POST', body: JSON.stringify({ token }) }),
 };

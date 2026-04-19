@@ -6,73 +6,47 @@
   * {
     box-sizing: border-box;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
   }
-
-  html, body, #root {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-  }
-
+  html, body, #root { height: 100%; margin: 0; padding: 0; }
   body {
-    background-color: #0f1117;
-    color: #e2e8f0;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    background-color: #f4f7f4;
+    color: #1a1a1a;
+    font-family: 'Mulish', system-ui, sans-serif;
   }
-
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #2a3347;
-    border-radius: 3px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #3a4560;
-  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #b8ddb0; border-radius: 3px; }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-accent hover:bg-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm;
+    @apply bg-[#50ad32] hover:bg-[#459a2a] text-white font-bold px-4 py-2 rounded-lg transition-all text-sm shadow-sm;
   }
   .btn-ghost {
-    @apply hover:bg-surface-2 text-slate-400 hover:text-slate-200 font-medium px-3 py-2 rounded-lg transition-colors text-sm;
+    @apply hover:bg-[#50ad32]/10 text-gray-500 hover:text-[#50ad32] font-semibold px-3 py-2 rounded-lg transition-colors text-sm;
   }
   .btn-danger {
-    @apply bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium px-4 py-2 rounded-lg transition-colors text-sm border border-red-500/20;
+    @apply bg-red-50 hover:bg-red-100 text-red-600 font-semibold px-4 py-2 rounded-lg transition-colors text-sm border border-red-200;
+  }
+  .btn-outline {
+    @apply border-2 border-[#50ad32] text-[#50ad32] hover:bg-[#50ad32] hover:text-white font-bold px-4 py-2 rounded-lg transition-all text-sm;
   }
   .card {
-    @apply bg-surface-1 border border-surface-border rounded-xl;
+    @apply bg-white border border-gray-100 rounded-xl shadow-sm;
   }
   .input {
-    @apply bg-surface-2 border border-surface-border rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent transition-colors w-full;
+    @apply bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 placeholder-gray-400
+           focus:outline-none focus:border-[#50ad32] focus:ring-2 focus:ring-[#50ad32]/20 transition-all w-full;
   }
   .label {
-    @apply text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5 block;
+    @apply text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block;
   }
   .badge {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium;
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold;
   }
 }
 
-/* Drag and drop ghost */
-.task-card-dragging {
-  opacity: 0.4;
-  transform: rotate(2deg);
-}
-
-.kanban-col-over {
-  background-color: rgba(91, 106, 240, 0.05);
-}
-
-/* Modal backdrop */
 .modal-backdrop {
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(3px);
 }

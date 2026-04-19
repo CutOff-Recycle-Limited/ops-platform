@@ -10,7 +10,7 @@ function StatCard({ label, value, sub, color = 'text-white' }) {
     <div className="card p-5">
       <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">{label}</p>
       <p className={`text-3xl font-bold ${color} font-mono`}>{value}</p>
-      {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
+      {sub && <p className="text-xs text-gray-400 font-semibold mt-1">{sub}</p>}
     </div>
   );
 }
@@ -55,10 +55,10 @@ export default function DashboardPage() {
   return (
     <div className="flex-1 overflow-y-auto">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-surface border-b border-surface-border px-6 py-3.5 flex items-center justify-between backdrop-blur-sm">
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 shadow-sm px-6 py-3.5 flex items-center justify-between backdrop-blur-sm">
         <div>
-          <h1 className="font-semibold text-white text-base">Dashboard</h1>
-          <p className="text-xs text-slate-500">Overview of all operations</p>
+          <h1 className="font-semibold font-black text-[#1a1a1a] text-lg">Dashboard</h1>
+          <p className="text-xs text-gray-400 font-semibold">Overview of all operations</p>
         </div>
         <Link to="/operations" className="btn-primary flex items-center gap-1.5">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
