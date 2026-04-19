@@ -1,4 +1,20 @@
 {
   "name": "ops-platform",
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd frontend && npm run build"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
+    "vite": "^5.0.8"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.21.0",
+    "date-fns": "^3.0.6"
+  }
 }
