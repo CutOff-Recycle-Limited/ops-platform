@@ -45,8 +45,8 @@ router.delete('/comments/:id', authenticate, commentsCtrl.remove);
 router.get('/users', authenticate, usersCtrl.list);
 router.put('/users/:id/role', authenticate, requireAdmin, usersCtrl.updateRole);
 router.delete('/users/:id', authenticate, requireAdmin, usersCtrl.remove);
-router.post('/invites', authenticate, usersCtrl.createInvite);
-router.get('/invites', authenticate, usersCtrl.listInvites);
+router.post('/invites', authenticate, requireAdmin, usersCtrl.createInvite);
+router.get('/invites', authenticate, requireAdmin, usersCtrl.listInvites);
 router.post('/invites/validate', usersCtrl.validateInvite);
 
 module.exports = router;

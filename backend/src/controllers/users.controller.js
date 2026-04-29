@@ -45,6 +45,11 @@ const remove = asyncHandler(async (req, res) => {
  */
 const createInvite = asyncHandler(async (req, res) => {
   const { role = 'member' } = req.body;
+  const frontendUrl = process.env.FRONTEND_URL && process.env.FRONTEND_URL.trim();
+  if (!frontendUrl) {
+    return res.status(500).json({ error: 'FRONTEND_URL is required to generate invite links' });
+  }
+  const normalizedFrontendUrl = frontendUrl.replace(/\/+$/, '');
 
   // Ensure table exists
   await query(`
@@ -66,8 +71,7 @@ const createInvite = asyncHandler(async (req, res) => {
     [token, req.user.id, role]
   );
 
-  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const inviteUrl = `${baseUrl}/join?token=${token}`;
+  const inviteUrl = `${normalizedFrontendUrl}/join?token=${encodeURIComponent(token)}`;
 
   res.json({ token, inviteUrl, role, expiresIn: '7 days' });
 });
