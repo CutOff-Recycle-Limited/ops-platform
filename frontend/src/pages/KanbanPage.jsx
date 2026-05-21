@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useOperation } from '../hooks/useOperations.js';
 import { useTasks } from '../hooks/useTasks.js';
 import { operations as opsApi, tasks as tasksApi, auth as authApi } from '../services/api';
@@ -11,6 +11,7 @@ import Avatar from '../components/Avatar.jsx';
 
 export default function KanbanPage() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { operation, members, loading: opLoading } = useOperation(id);
   const { tasks, loading: tasksLoading, reload, updateTaskStatus } = useTasks(id);
 
@@ -31,6 +32,25 @@ export default function KanbanPage() {
       .catch(console.error);
     authApi.users().then(res => setAllUsers(res.users)).catch(console.error);
   }, [id]);
+
+  useEffect(() => {
+    setSelectedTaskId(searchParams.get('task'));
+  }, [searchParams]);
+
+  const openTask = useCallback((taskId) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('task', taskId);
+    setSearchParams(nextParams);
+    setSelectedTaskId(taskId);
+  }, [searchParams, setSearchParams]);
+
+  const closeTask = useCallback(() => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('task');
+    setSearchParams(nextParams, { replace: true });
+    setSelectedTaskId(null);
+    reload();
+  }, [searchParams, setSearchParams, reload]);
 
   const tasksByStatus = statuses.reduce((acc, s) => {
     acc[s.id] = tasks.filter(t => {
@@ -216,7 +236,7 @@ export default function KanbanPage() {
                         key={task.id}
                         task={task}
                         operationKey={operation.key}
-                        onClick={() => setSelectedTaskId(task.id)}
+                        onClick={() => openTask(task.id)}
                         onDragStart={() => handleDragStart(task.id)}
                         onDragEnd={() => { dragTaskId.current = null; setDragOverCol(null); }}
                       />
@@ -232,7 +252,7 @@ export default function KanbanPage() {
       {/* Task Detail Modal */}
       <Modal
         open={!!selectedTaskId}
-        onClose={() => { setSelectedTaskId(null); reload(); }}
+        onClose={closeTask}
         size="full"
         noPadding
       >
@@ -243,7 +263,7 @@ export default function KanbanPage() {
             statuses={statuses}
             transitions={transitions}
             users={allUsers}
-            onClose={() => { setSelectedTaskId(null); reload(); }}
+            onClose={closeTask}
             onUpdate={reload}
           />
         )}

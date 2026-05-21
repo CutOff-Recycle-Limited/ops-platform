@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { format, formatDistanceToNow } from 'date-fns';
 import { auth as authApi, operations as opsApi, tasks as tasksApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -246,6 +247,7 @@ function TaskRow({
     ? [task.linked_entity_type, task.linked_entity_id].filter(Boolean).join(': ')
     : null;
   const dueDate = formatDueDate(task.due_date);
+  const canonicalTaskPath = `/operations/${task.operation_id}?task=${task.id}`;
 
   return (
     <div className="card p-4 hover:shadow-md transition-shadow">
@@ -258,7 +260,12 @@ function TaskRow({
             <PriorityBadge priority={task.priority} showLabel />
             <span className="badge bg-gray-100 text-gray-500 capitalize">{statusLabel(task.status)}</span>
           </div>
-          <h2 className="text-sm font-black text-[#1a1a1a] leading-snug truncate">{task.title}</h2>
+          <Link
+            to={canonicalTaskPath}
+            className="block text-sm font-black text-[#1a1a1a] leading-snug truncate hover:text-[#50ad32] transition-colors"
+          >
+            {task.title}
+          </Link>
           {task.description && (
             <p className="text-xs text-gray-400 font-medium mt-1 line-clamp-2">{task.description}</p>
           )}
@@ -277,7 +284,7 @@ function TaskRow({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 lg:w-[22rem] lg:justify-end">
+        <div className="flex items-center justify-between gap-3 flex-wrap lg:w-[30rem] lg:justify-end">
           {task.assignee_name ? (
             <div className="flex items-center gap-2 min-w-0">
               <Avatar name={task.assignee_name} color={task.assignee_color || '#50ad32'} size="xs" />
@@ -286,6 +293,13 @@ function TaskRow({
           ) : (
             <span className="text-xs font-bold text-gray-300">Unassigned</span>
           )}
+
+          <Link
+            to={canonicalTaskPath}
+            className="btn-ghost py-1.5 text-xs"
+          >
+            Open in Operation
+          </Link>
 
           <button
             type="button"
