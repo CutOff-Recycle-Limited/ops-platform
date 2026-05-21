@@ -21,8 +21,15 @@ const create = asyncHandler(async (req, res) => {
 
   // Log activity
   await query(
-    `INSERT INTO activity_logs (task_id, operation_id, user_id, action, new_value) VALUES ($1,$2,$3,'comment',$4)`,
-    [taskId, taskResult.rows[0].operation_id, req.user.id, JSON.stringify({ content: content.trim() })]
+    `INSERT INTO activity_logs (task_id, operation_id, user_id, actor_id, action, new_value, metadata)
+     VALUES ($1,$2,$3,$3,'comment',$4,$5)`,
+    [
+      taskId,
+      taskResult.rows[0].operation_id,
+      req.user.id,
+      JSON.stringify({ content: content.trim() }),
+      JSON.stringify({ source: 'comments' }),
+    ]
   );
 
   const full = await query(

@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import Layout from './components/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
+import TasksPage from './pages/TasksPage.jsx';
 import OperationsPage from './pages/OperationsPage.jsx';
 import KanbanPage from './pages/KanbanPage.jsx';
 import UsersPage from './pages/UsersPage.jsx';
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="tasks" element={<TasksPage />} />
             <Route path="operations" element={<OperationsPage />} />
             <Route path="operations/:id" element={<KanbanPage />} />
             <Route path="users" element={<UsersPage />} />

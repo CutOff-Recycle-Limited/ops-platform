@@ -28,11 +28,15 @@ router.post('/operations/:id/members', authenticate, requireOperationAccess, ops
 router.delete('/operations/:id/members/:userId', authenticate, requireOperationAccess, opsCtrl.removeMember);
 
 // ─── Tasks ───────────────────────────────────────────────────────
+router.get('/tasks', authenticate, tasksCtrl.listAll);
+router.post('/tasks', authenticate, tasksCtrl.createStandalone);
+router.get('/tasks/today', authenticate, tasksCtrl.today);
 router.get('/operations/:operationId/tasks', authenticate, requireOperationAccess, tasksCtrl.list);
 router.post('/operations/:operationId/tasks', authenticate, requireOperationAccess, tasksCtrl.create);
 router.get('/operations/:operationId/workflow', authenticate, requireOperationAccess, tasksCtrl.getWorkflow);
 router.get('/tasks/:id', authenticate, tasksCtrl.getOne);
 router.put('/tasks/:id', authenticate, tasksCtrl.update);
+router.patch('/tasks/:id', authenticate, tasksCtrl.patchTask);
 router.patch('/tasks/:id/transition', authenticate, tasksCtrl.transition);
 router.delete('/tasks/:id', authenticate, tasksCtrl.remove);
 

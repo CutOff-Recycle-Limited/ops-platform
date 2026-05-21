@@ -11,6 +11,29 @@ async function migrate() {
     await client.query(schema);
     console.log('Schema applied.');
 
+    // Additive task execution-layer fields for existing databases.
+    await client.query(`
+      ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS created_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS linked_entity_type VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS linked_entity_id VARCHAR(120)
+    `);
+    await client.query(`
+      UPDATE tasks SET created_by_id = reporter_id WHERE created_by_id IS NULL
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_linked_entity ON tasks(linked_entity_type, linked_entity_id)');
+    await client.query(`
+      ALTER TABLE activity_logs
+        ADD COLUMN IF NOT EXISTS actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS metadata JSONB
+    `);
+    await client.query(`
+      UPDATE activity_logs SET actor_id = user_id WHERE actor_id IS NULL
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_activity_actor ON activity_logs(actor_id)');
+    console.log('Task execution fields ready.');
+
     // Create invite_tokens table if not exists
     await client.query(`
       CREATE TABLE IF NOT EXISTS invite_tokens (

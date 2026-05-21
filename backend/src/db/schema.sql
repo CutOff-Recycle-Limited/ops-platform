@@ -95,7 +95,10 @@ CREATE TABLE IF NOT EXISTS tasks (
   priority VARCHAR(20) DEFAULT 'medium' CHECK (priority IN ('critical', 'high', 'medium', 'low')),
   assignee_id UUID REFERENCES users(id) ON DELETE SET NULL,
   reporter_id UUID NOT NULL REFERENCES users(id),
+  created_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
   due_date DATE,
+  linked_entity_type VARCHAR(50),
+  linked_entity_id VARCHAR(120),
   task_number INTEGER,  -- sequential per operation
   position FLOAT DEFAULT 0,  -- for ordering within columns
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -105,8 +108,10 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE INDEX IF NOT EXISTS idx_tasks_operation ON tasks(operation_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+CREATE INDEX IF NOT EXISTS idx_tasks_linked_entity ON tasks(linked_entity_type, linked_entity_id);
 
 -- COMMENTS
 CREATE TABLE IF NOT EXISTS comments (
@@ -127,12 +132,15 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   operation_id UUID NOT NULL REFERENCES operations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
   action VARCHAR(50) NOT NULL,  -- 'status_change', 'comment', 'edit', 'create', 'assign'
   old_value JSONB,
   new_value JSONB,
+  metadata JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_activity_task ON activity_logs(task_id);
 CREATE INDEX IF NOT EXISTS idx_activity_operation ON activity_logs(operation_id);
+CREATE INDEX IF NOT EXISTS idx_activity_actor ON activity_logs(actor_id);
 CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at DESC);

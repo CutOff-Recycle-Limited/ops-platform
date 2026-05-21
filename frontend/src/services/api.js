@@ -42,12 +42,19 @@ export const operations = {
 };
 
 export const tasks = {
+  all: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/tasks${qs ? '?' + qs : ''}`);
+  },
+  today: () => request('/tasks/today'),
+  createGeneral: (data) => request('/tasks', { method: 'POST', body: JSON.stringify(data) }),
   list: (operationId, params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/operations/${operationId}/tasks${qs ? '?' + qs : ''}`);
   },
   get: (id) => request(`/tasks/${id}`),
   create: (operationId, data) => request(`/operations/${operationId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
+  patch: (id, data) => request(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   update: (id, data) => request(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   transition: (id, status_id) => request(`/tasks/${id}/transition`, { method: 'PATCH', body: JSON.stringify({ status_id }) }),
   delete: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
