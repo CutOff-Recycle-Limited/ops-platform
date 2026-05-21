@@ -57,6 +57,10 @@ export const tasks = {
   patch: (id, data) => request(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   update: (id, data) => request(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   transition: (id, status_id) => request(`/tasks/${id}/transition`, { method: 'PATCH', body: JSON.stringify({ status_id }) }),
+  timeEntries: (id) => request(`/tasks/${id}/time-entries`),
+  createTimeEntry: (id, data) => request(`/tasks/${id}/time-entries`, { method: 'POST', body: JSON.stringify(data) }),
+  updateTimeEntry: (id, entryId, data) => request(`/tasks/${id}/time-entries/${entryId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteTimeEntry: (id, entryId) => request(`/tasks/${id}/time-entries/${entryId}`, { method: 'DELETE' }),
   delete: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
 };
 

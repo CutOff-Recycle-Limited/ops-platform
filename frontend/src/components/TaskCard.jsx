@@ -8,6 +8,15 @@ const TYPE_ICONS = {
   subtask: { d: 'M4 6h16M4 10h16M4 14h8', color: 'text-gray-400' },
 };
 
+function formatLoggedMinutes(value) {
+  const minutes = Number(value) || 0;
+  if (minutes < 60) return `${minutes}m`;
+
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+}
+
 export default function TaskCard({ task, operationKey, onClick, onDragStart, onDragEnd }) {
   const isOverdue = task.due_date && isPast(new Date(task.due_date));
   const typeIcon = TYPE_ICONS[task.type] || TYPE_ICONS.task;
@@ -63,6 +72,14 @@ export default function TaskCard({ task, operationKey, onClick, onDragStart, onD
             <span className={`text-[11px] font-semibold ${isOverdue ? 'text-red-500' : 'text-gray-300'}`}>
               {isOverdue ? '⚠ ' : ''}
               {formatDistanceToNow(new Date(task.due_date), { addSuffix: true })}
+            </span>
+          )}
+          {task.total_logged_minutes > 0 && (
+            <span className="flex items-center gap-1 text-[11px] text-[#1f4074] font-semibold">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+              </svg>
+              {formatLoggedMinutes(task.total_logged_minutes)}
             </span>
           )}
         </div>

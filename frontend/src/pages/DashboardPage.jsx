@@ -15,12 +15,24 @@ function StatCard({ label, value, sub, accent = false }) {
   );
 }
 
+function formatLoggedMinutes(value) {
+  const minutes = Number(value) || 0;
+  if (minutes < 60) return `${minutes}m`;
+
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+}
+
 const ACTION_LABELS = {
   status_change: (a) => <>moved to <span className="font-black text-[#50ad32]">{a.new_value?.status}</span></>,
   comment: () => 'added a comment',
   create: () => 'created a task',
   edit: () => 'updated a task',
   assign: () => 'assigned a task',
+  time_add: (a) => <>logged <span className="font-black text-[#50ad32]">{formatLoggedMinutes(a.new_value?.minutes)}</span></>,
+  time_edit: () => 'edited logged time',
+  time_delete: () => 'deleted logged time',
 };
 
 const ACTION_COLORS = {
@@ -29,6 +41,9 @@ const ACTION_COLORS = {
   create: 'bg-[#50ad32]/10 text-[#50ad32]',
   edit: 'bg-yellow-50 text-yellow-600',
   assign: 'bg-orange-50 text-orange-600',
+  time_add: 'bg-[#1f4074]/10 text-[#1f4074]',
+  time_edit: 'bg-[#1f4074]/10 text-[#1f4074]',
+  time_delete: 'bg-red-50 text-red-500',
 };
 
 const ACTION_ICONS = {
@@ -37,6 +52,9 @@ const ACTION_ICONS = {
   create: 'M12 4v16m8-8H4',
   edit: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
   assign: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+  time_add: 'M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z',
+  time_edit: 'M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z',
+  time_delete: 'M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z',
 };
 
 export default function DashboardPage() {

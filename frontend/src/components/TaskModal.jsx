@@ -11,6 +11,15 @@ const TYPE_OPTIONS = [
   { value: 'subtask', label: 'Subtask' },
 ];
 
+function formatLoggedMinutes(value) {
+  const minutes = Number(value) || 0;
+  if (minutes < 60) return `${minutes}m`;
+
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+}
+
 export default function TaskModal({ taskId, operationKey, statuses = [], transitions = [], users = [], onClose, onUpdate }) {
   const { task, subtasks, comments, activity, loading, reload, setTask, setCommentList } = useTask(taskId);
   const [editing, setEditing] = useState(false);
@@ -213,6 +222,9 @@ export default function TaskModal({ taskId, operationKey, statuses = [], transit
                     {a.action === 'create' && 'created this task'}
                     {a.action === 'comment' && 'added a comment'}
                     {a.action === 'edit' && 'edited this task'}
+                    {a.action === 'time_add' && <>logged <span className="font-bold text-[#50ad32]">{formatLoggedMinutes(a.new_value?.minutes)}</span></>}
+                    {a.action === 'time_edit' && 'edited logged time'}
+                    {a.action === 'time_delete' && 'deleted logged time'}
                   </p>
                   <p className="text-[11px] text-gray-300 font-medium mt-0.5">{format(new Date(a.created_at), 'MMM d, h:mm a')}</p>
                 </div>
@@ -279,6 +291,9 @@ export default function TaskModal({ taskId, operationKey, statuses = [], transit
               {format(new Date(task.due_date), 'MMM d, yyyy')}
             </p>
           ) : <p className="text-sm text-gray-300 font-medium py-0.5">No due date</p> },
+          { label: 'Logged Time', content: (
+            <p className="text-sm font-semibold text-[#1f4074] py-0.5">{formatLoggedMinutes(task.total_logged_minutes)}</p>
+          )},
         ].map(({ label, content }) => (
           <div key={label}>
             <p className="label">{label}</p>

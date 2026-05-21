@@ -34,6 +34,23 @@ async function migrate() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_activity_actor ON activity_logs(actor_id)');
     console.log('Task execution fields ready.');
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_time_entries (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        minutes INTEGER NOT NULL CHECK (minutes > 0),
+        note TEXT,
+        logged_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_task_time_entries_task ON task_time_entries(task_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_task_time_entries_user ON task_time_entries(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_task_time_entries_logged_at ON task_time_entries(logged_at DESC)');
+    console.log('task_time_entries table ready.');
+
     // Create invite_tokens table if not exists
     await client.query(`
       CREATE TABLE IF NOT EXISTS invite_tokens (

@@ -126,6 +126,22 @@ CREATE TABLE IF NOT EXISTS comments (
 
 CREATE INDEX IF NOT EXISTS idx_comments_task ON comments(task_id);
 
+-- TASK TIME ENTRIES
+CREATE TABLE IF NOT EXISTS task_time_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  minutes INTEGER NOT NULL CHECK (minutes > 0),
+  note TEXT,
+  logged_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_time_entries_task ON task_time_entries(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_time_entries_user ON task_time_entries(user_id);
+CREATE INDEX IF NOT EXISTS idx_task_time_entries_logged_at ON task_time_entries(logged_at DESC);
+
 -- ACTIVITY LOGS
 CREATE TABLE IF NOT EXISTS activity_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -133,7 +149,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   operation_id UUID NOT NULL REFERENCES operations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  action VARCHAR(50) NOT NULL,  -- 'status_change', 'comment', 'edit', 'create', 'assign'
+  action VARCHAR(50) NOT NULL,  -- 'status_change', 'comment', 'edit', 'create', 'assign', 'time_add', 'time_edit', 'time_delete'
   old_value JSONB,
   new_value JSONB,
   metadata JSONB,

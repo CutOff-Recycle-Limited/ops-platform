@@ -6,7 +6,7 @@ const VALID_SIMPLE_STATUSES = new Set(['todo', 'in_progress', 'done']);
 const VALID_TYPES = new Set(['task', 'epic', 'subtask']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const TASK_SELECT = `
+const taskSelect = (currentUserParam = 'NULL') => `
   SELECT t.*,
     COALESCE(t.created_by_id, t.reporter_id) as created_by_id,
     s.category as status,
@@ -15,6 +15,8 @@ const TASK_SELECT = `
     r.name as reporter_name, r.avatar_color as reporter_color,
     cb.name as created_by_name,
     o.name as operation_name, o.key as operation_key, o.color as operation_color,
+    (SELECT COALESCE(SUM(te.minutes), 0)::int FROM task_time_entries te WHERE te.task_id = t.id) as total_logged_minutes,
+    (SELECT COALESCE(SUM(te.minutes), 0)::int FROM task_time_entries te WHERE te.task_id = t.id AND te.user_id = ${currentUserParam}::uuid) as current_user_logged_minutes,
     (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id) as comment_count,
     (SELECT COUNT(*) FROM tasks sub WHERE sub.parent_id = t.id) as subtask_count
   FROM tasks t
@@ -38,6 +40,14 @@ const TASK_ORDER = `
   t.created_at DESC
 `;
 
+const TIME_ENTRY_SELECT = `
+  SELECT te.*,
+    u.name as user_name,
+    u.avatar_color as user_avatar_color
+  FROM task_time_entries te
+  JOIN users u ON te.user_id = u.id
+`;
+
 const httpError = (status, message) => {
   const err = new Error(message);
   err.status = status;
@@ -55,6 +65,11 @@ const addOperationAccessFilter = (where, params, user) => {
       WHERE om.operation_id = o.id AND om.user_id = ${userParam}
     )
   )`);
+};
+
+const addTaskSummaryUserParam = (params, user) => {
+  params.push(user.id);
+  return `$${params.length}`;
 };
 
 const normalizeOptionalText = (value, field, maxLength) => {
@@ -96,6 +111,24 @@ const normalizeDate = (value, field = 'due_date') => {
     throw httpError(400, `${field} must be a valid date`);
   }
   return value;
+};
+
+const normalizeLoggedAt = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') throw httpError(400, 'logged_at must be a valid date or timestamp');
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw httpError(400, 'logged_at must be a valid date or timestamp');
+
+  return date.toISOString();
+};
+
+const normalizeMinutes = (value) => {
+  const minutes = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  if (!Number.isInteger(minutes) || minutes <= 0) {
+    throw httpError(400, 'minutes must be a positive integer');
+  }
+  return minutes;
 };
 
 const normalizePriority = (value, fallback = 'medium') => {
@@ -157,9 +190,10 @@ const getAccessibleTask = async (taskId, user) => {
   const where = ['t.id = $1'];
   const params = [taskId];
   addOperationAccessFilter(where, params, user);
+  const currentUserParam = addTaskSummaryUserParam(params, user);
 
   const result = await query(
-    `${TASK_SELECT}
+    `${taskSelect(currentUserParam)}
      WHERE ${where.join(' AND ')}
      LIMIT 1`,
     params
@@ -217,6 +251,26 @@ const insertActivity = async ({ taskId, operationId, userId, action, oldValue = 
       metadata ? JSON.stringify(metadata) : null,
     ]
   );
+};
+
+const getTimeEntry = async (taskId, entryId) => {
+  if (!UUID_RE.test(entryId || '')) throw httpError(400, 'Time entry id must be a valid UUID');
+
+  const result = await query(
+    `${TIME_ENTRY_SELECT}
+     WHERE te.task_id = $1 AND te.id = $2
+     LIMIT 1`,
+    [taskId, entryId]
+  );
+
+  if (!result.rows.length) throw httpError(404, 'Time entry not found');
+  return result.rows[0];
+};
+
+const requireTimeEntryOwner = (entry, user) => {
+  if (entry.user_id !== user.id && user.role !== 'admin') {
+    throw httpError(403, 'Cannot edit time logged by another user');
+  }
 };
 
 const createTaskForOperation = async (operationId, body, user) => {
@@ -304,8 +358,9 @@ const listAll = asyncHandler(async (req, res) => {
     where.push(`s.category = $${params.length}`);
   }
 
+  const currentUserParam = addTaskSummaryUserParam(params, req.user);
   const tasks = await query(
-    `${TASK_SELECT}
+    `${taskSelect(currentUserParam)}
      WHERE ${where.join(' AND ')}
      ORDER BY ${TASK_ORDER}`,
     params
@@ -324,8 +379,9 @@ const today = asyncHandler(async (req, res) => {
 
   addOperationAccessFilter(where, params, req.user);
 
+  const currentUserParam = addTaskSummaryUserParam(params, req.user);
   const tasks = await query(
-    `${TASK_SELECT}
+    `${taskSelect(currentUserParam)}
      WHERE ${where.join(' AND ')}
      ORDER BY ${TASK_ORDER}`,
     params
@@ -362,8 +418,9 @@ const list = asyncHandler(async (req, res) => {
     params.push(type);
   }
 
+  const currentUserParam = addTaskSummaryUserParam(params, req.user);
   const tasks = await query(
-    `${TASK_SELECT}
+    `${taskSelect(currentUserParam)}
      ${whereClause}
      ORDER BY s.position, t.position, t.created_at`,
     params
@@ -599,6 +656,120 @@ const patchTask = asyncHandler(async (req, res) => {
 });
 
 /**
+ * GET /api/tasks/:id/time-entries
+ */
+const listTimeEntries = asyncHandler(async (req, res) => {
+  const task = await getAccessibleTask(req.params.id, req.user);
+
+  const entries = await query(
+    `${TIME_ENTRY_SELECT}
+     WHERE te.task_id = $1
+     ORDER BY te.logged_at DESC, te.created_at DESC`,
+    [task.id]
+  );
+
+  res.json({
+    entries: entries.rows,
+    total_logged_minutes: task.total_logged_minutes,
+    current_user_logged_minutes: task.current_user_logged_minutes,
+  });
+});
+
+/**
+ * POST /api/tasks/:id/time-entries
+ */
+const createTimeEntry = asyncHandler(async (req, res) => {
+  const task = await getAccessibleTask(req.params.id, req.user);
+  const minutes = normalizeMinutes(req.body.minutes);
+  const note = normalizeOptionalText(req.body.note, 'note', 2000);
+  const loggedAt = normalizeLoggedAt(req.body.logged_at) || null;
+
+  const created = await query(
+    `INSERT INTO task_time_entries (task_id, user_id, minutes, note, logged_at)
+     VALUES ($1,$2,$3,$4,COALESCE($5::timestamptz, NOW()))
+     RETURNING id`,
+    [task.id, req.user.id, minutes, note || null, loggedAt]
+  );
+
+  const entry = await getTimeEntry(task.id, created.rows[0].id);
+
+  await insertActivity({
+    taskId: task.id,
+    operationId: task.operation_id,
+    userId: req.user.id,
+    action: 'time_add',
+    newValue: { minutes, note: note || null },
+    metadata: { source: 'time_entries', entry_id: entry.id },
+  });
+
+  const updatedTask = await getAccessibleTask(task.id, req.user);
+  res.status(201).json({ entry, task: updatedTask });
+});
+
+/**
+ * PATCH /api/tasks/:id/time-entries/:entryId
+ */
+const updateTimeEntry = asyncHandler(async (req, res) => {
+  const task = await getAccessibleTask(req.params.id, req.user);
+  const entry = await getTimeEntry(task.id, req.params.entryId);
+  requireTimeEntryOwner(entry, req.user);
+
+  const allowedFields = ['minutes', 'note', 'logged_at'];
+  const providedFields = Object.keys(req.body).filter(key => allowedFields.includes(key));
+  if (!providedFields.length) throw httpError(400, 'No supported time entry fields provided');
+
+  const minutes = req.body.minutes === undefined ? entry.minutes : normalizeMinutes(req.body.minutes);
+  const note = req.body.note === undefined ? entry.note : normalizeOptionalText(req.body.note, 'note', 2000);
+  const loggedAt = req.body.logged_at === undefined ? entry.logged_at : normalizeLoggedAt(req.body.logged_at);
+
+  const updated = await query(
+    `UPDATE task_time_entries
+     SET minutes=$1, note=$2, logged_at=$3, updated_at=NOW()
+     WHERE id=$4 AND task_id=$5
+     RETURNING id`,
+    [minutes, note || null, loggedAt, entry.id, task.id]
+  );
+
+  const updatedEntry = await getTimeEntry(task.id, updated.rows[0].id);
+
+  await insertActivity({
+    taskId: task.id,
+    operationId: task.operation_id,
+    userId: req.user.id,
+    action: 'time_edit',
+    oldValue: { minutes: entry.minutes, note: entry.note, logged_at: entry.logged_at },
+    newValue: { minutes, note: note || null, logged_at: updatedEntry.logged_at },
+    metadata: { source: 'time_entries', entry_id: entry.id },
+  });
+
+  const updatedTask = await getAccessibleTask(task.id, req.user);
+  res.json({ entry: updatedEntry, task: updatedTask });
+});
+
+/**
+ * DELETE /api/tasks/:id/time-entries/:entryId
+ */
+const deleteTimeEntry = asyncHandler(async (req, res) => {
+  const task = await getAccessibleTask(req.params.id, req.user);
+  const entry = await getTimeEntry(task.id, req.params.entryId);
+  requireTimeEntryOwner(entry, req.user);
+
+  await query('DELETE FROM task_time_entries WHERE id=$1 AND task_id=$2', [entry.id, task.id]);
+
+  await insertActivity({
+    taskId: task.id,
+    operationId: task.operation_id,
+    userId: req.user.id,
+    action: 'time_delete',
+    oldValue: { minutes: entry.minutes, note: entry.note, logged_at: entry.logged_at },
+    metadata: { source: 'time_entries', entry_id: entry.id },
+  });
+
+  const updatedTask = await getAccessibleTask(task.id, req.user);
+  res.json({ success: true, task: updatedTask });
+});
+
+/**
  * PATCH /api/tasks/:id/transition
  * Move task to a new status via workflow transition
  */
@@ -691,6 +862,10 @@ module.exports = {
   create,
   update,
   patchTask,
+  listTimeEntries,
+  createTimeEntry,
+  updateTimeEntry,
+  deleteTimeEntry,
   transition,
   remove,
   getWorkflow,
