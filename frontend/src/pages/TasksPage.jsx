@@ -29,9 +29,25 @@ const PRIORITY_OPTIONS = [
   { value: 'low', label: 'Low' },
 ];
 
+const TASK_VIEW_OPTIONS = [
+  { value: 'today', label: 'Today' },
+  { value: 'mine', label: 'Assigned to me' },
+  { value: 'overdue', label: 'Overdue' },
+  { value: 'due_soon', label: 'Due soon' },
+  { value: 'high_priority', label: 'High priority' },
+  { value: 'recently_completed', label: 'Recently completed' },
+];
+
 function parseDate(value) {
   if (!value) return null;
   return new Date(`${String(value).slice(0, 10)}T00:00:00`);
+}
+
+function dateKey(offsetDays = 0) {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + offsetDays);
+  return format(date, 'yyyy-MM-dd');
 }
 
 function formatDueDate(value) {
@@ -66,6 +82,35 @@ function linkedCrmLabel(task) {
   if (task.linked_entity?.label) return `CRM: ${task.linked_entity.label}`;
   if (task.linked_entity_type) return `CRM: ${task.linked_entity_type.replace(/_/g, ' ')}`;
   return null;
+}
+
+function taskViewLabel(view) {
+  return TASK_VIEW_OPTIONS.find(option => option.value === view)?.label || 'Tasks';
+}
+
+function paramsForTaskView(view, user) {
+  const today = dateKey();
+  const soonCutoff = dateKey(8);
+
+  switch (view) {
+    case 'mine':
+      return { assignee_id: user.id, status_category: 'open' };
+    case 'overdue':
+      return { due_before: today, status_category: 'open' };
+    case 'due_soon':
+      return { due_after: today, due_before: soonCutoff, status_category: 'open' };
+    case 'high_priority':
+      return { priority: 'critical,high', status_category: 'open' };
+    case 'recently_completed':
+      return { completed_recently: '14' };
+    default:
+      return null;
+  }
+}
+
+async function fetchTasksForView(view, user) {
+  if (view === 'today') return tasksApi.today();
+  return tasksApi.all(paramsForTaskView(view, user));
 }
 
 function TimePanel({ task, entries = [], loading, currentUser, onLogTime, onEditTime, onDeleteTime }) {
@@ -356,12 +401,13 @@ export default function TasksPage() {
   const [saving, setSaving] = useState(false);
   const [updatingTaskId, setUpdatingTaskId] = useState(null);
   const [expandedTaskId, setExpandedTaskId] = useState(null);
+  const [selectedView, setSelectedView] = useState('today');
   const [timeEntriesByTask, setTimeEntriesByTask] = useState({});
   const [timeLoadingTaskId, setTimeLoadingTaskId] = useState(null);
   const [error, setError] = useState('');
 
-  const loadTasks = async () => {
-    const res = await tasksApi.today();
+  const loadTasks = async (view = selectedView) => {
+    const res = await fetchTasksForView(view, user);
     setTaskList(res.tasks || []);
   };
 
@@ -387,7 +433,7 @@ export default function TasksPage() {
       setError('');
       try {
         const [tasksRes, opsRes, usersRes] = await Promise.all([
-          tasksApi.today(),
+          fetchTasksForView(selectedView, user),
           opsApi.list(),
           authApi.users(),
         ]);
@@ -406,12 +452,14 @@ export default function TasksPage() {
 
     load();
     return () => { mounted = false; };
-  }, []);
+  }, [user?.id]);
 
   const openCount = useMemo(
     () => taskList.filter(task => task.status !== 'done').length,
     [taskList]
   );
+  const headerCount = selectedView === 'recently_completed' ? taskList.length : openCount;
+  const headerNoun = selectedView === 'recently_completed' ? 'completed task' : 'open task';
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -432,7 +480,7 @@ export default function TasksPage() {
       });
       const operationId = form.operation_id;
       setForm({ ...EMPTY_FORM, operation_id: operationId });
-      await loadTasks();
+      await loadTasks(selectedView);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -497,17 +545,28 @@ export default function TasksPage() {
     if (res.task) updateTaskSummary(res.task);
   };
 
+  const handleViewChange = async (view) => {
+    setSelectedView(view);
+    setExpandedTaskId(null);
+    setError('');
+    try {
+      await loadTasks(view);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto bg-[#f4f7f4]">
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shadow-sm">
         <div>
           <h1 className="font-black text-[#1a1a1a] text-lg">Tasks</h1>
           <p className="text-xs text-gray-400 font-semibold mt-0.5">
-            {openCount} open task{openCount !== 1 ? 's' : ''} in today's view
+            {headerCount} {headerNoun}{headerCount !== 1 ? 's' : ''} in {taskViewLabel(selectedView).toLowerCase()}
           </p>
         </div>
         <button
-          onClick={() => loadTasks().catch(err => setError(err.message))}
+          onClick={() => loadTasks(selectedView).catch(err => setError(err.message))}
           className="btn-outline flex items-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -519,6 +578,23 @@ export default function TasksPage() {
 
       <div className="p-6 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6">
         <section className="space-y-3 min-w-0">
+          <div className="flex flex-wrap gap-2">
+            {TASK_VIEW_OPTIONS.map(option => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleViewChange(option.value)}
+                className={`px-3 py-2 rounded-lg text-xs font-black transition-colors ${
+                  selectedView === option.value
+                    ? 'bg-[#50ad32] text-white shadow-sm'
+                    : 'bg-white text-gray-500 border border-gray-100 hover:text-[#50ad32]'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
           {error && (
             <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-semibold">
               {error}
@@ -532,7 +608,7 @@ export default function TasksPage() {
           ) : taskList.length === 0 ? (
             <div className="card p-10 text-center">
               <h2 className="font-black text-[#1a1a1a] text-base">No tasks to show</h2>
-              <p className="text-sm text-gray-400 font-medium mt-1">Create a task to add it to the daily view.</p>
+              <p className="text-sm text-gray-400 font-medium mt-1">Nothing matches the current task view.</p>
             </div>
           ) : (
             taskList.map(task => (

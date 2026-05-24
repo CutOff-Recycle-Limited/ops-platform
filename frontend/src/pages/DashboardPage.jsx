@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { dashboard as dashApi } from '../services/api';
+import { dashboard as dashApi, tasks as tasksApi } from '../services/api';
+import { useAuth } from '../hooks/useAuth.jsx';
 import Avatar from '../components/Avatar.jsx';
 import PriorityBadge from '../components/PriorityBadge.jsx';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 
 function StatCard({ label, value, sub, accent = false }) {
   return (
@@ -22,6 +23,25 @@ function formatLoggedMinutes(value) {
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+}
+
+function dateKey(offsetDays = 0) {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + offsetDays);
+  return format(date, 'yyyy-MM-dd');
+}
+
+function formatDueDate(value) {
+  if (!value) return null;
+  return format(new Date(`${String(value).slice(0, 10)}T00:00:00`), 'MMM d');
+}
+
+function linkedCrmLabel(task) {
+  if (task.linked_entity?.customer_name) return `Customer: ${task.linked_entity.customer_name}`;
+  if (task.linked_entity?.label) return `CRM: ${task.linked_entity.label}`;
+  if (task.linked_entity_type) return `CRM: ${task.linked_entity_type.replace(/_/g, ' ')}`;
+  return null;
 }
 
 const ACTION_LABELS = {
@@ -57,16 +77,113 @@ const ACTION_ICONS = {
   time_delete: 'M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z',
 };
 
+function TaskListCard({ title, count, tasks = [], empty, tone = 'blue', showAssignee = false }) {
+  const toneClasses = {
+    blue: 'bg-[#1f4074]/10 text-[#1f4074]',
+    green: 'bg-[#50ad32]/10 text-[#50ad32]',
+    red: 'bg-red-50 text-red-500',
+    orange: 'bg-orange-50 text-orange-600',
+    gray: 'bg-gray-100 text-gray-500',
+  };
+
+  return (
+    <div className="card p-5 min-w-0">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h3 className="text-sm font-black text-[#1a1a1a]">{title}</h3>
+        <span className={`badge ${toneClasses[tone] || toneClasses.gray}`}>{count ?? tasks.length}</span>
+      </div>
+
+      {tasks.length === 0 ? (
+        <p className="text-sm text-gray-300 font-medium py-6 text-center">{empty}</p>
+      ) : (
+        <div className="space-y-2.5">
+          {tasks.map(task => {
+            const dueDate = formatDueDate(task.due_date);
+            const crmLabel = linkedCrmLabel(task);
+
+            return (
+              <Link
+                key={task.id}
+                to={`/operations/${task.operation_id}?task=${task.id}`}
+                className="block p-3 rounded-lg bg-gray-50 border border-gray-100 hover:border-[#50ad32]/40 hover:bg-white transition-colors"
+              >
+                <div className="flex items-start gap-2">
+                  <PriorityBadge priority={task.priority} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-[#1a1a1a] truncate">{task.title}</p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[11px] text-gray-400 font-semibold">
+                      <span className="font-mono">{task.operation_key}-{task.task_number}</span>
+                      {dueDate && <span>Due {dueDate}</span>}
+                      {task.status_name && <span>{task.status_name}</span>}
+                    </div>
+                    {crmLabel && (
+                      <p className="text-[11px] text-[#1f4074] font-bold mt-1 truncate">{crmLabel}</p>
+                    )}
+                  </div>
+                  {showAssignee && task.assignee_name && (
+                    <Avatar name={task.assignee_name} color={task.assignee_color || task.avatar_color} size="xs" />
+                  )}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    dashApi.get()
-      .then(setData)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+    let mounted = true;
+
+    async function loadDashboard() {
+      setLoading(true);
+      try {
+        const today = dateKey();
+        const soonCutoff = dateKey(8);
+        const [
+          dashboard,
+          myTasks,
+          overdueTasks,
+          dueSoonTasks,
+          highPriorityTasks,
+          recentlyCompletedTasks,
+        ] = await Promise.all([
+          dashApi.get(),
+          tasksApi.all({ assignee_id: user.id, status_category: 'open', limit: 5 }),
+          tasksApi.all({ due_before: today, status_category: 'open', limit: 5 }),
+          tasksApi.all({ due_after: today, due_before: soonCutoff, status_category: 'open', limit: 5 }),
+          tasksApi.all({ priority: 'critical,high', status_category: 'open', limit: 5 }),
+          tasksApi.all({ completed_recently: '14', limit: 5 }),
+        ]);
+
+        if (!mounted) return;
+        setData({
+          ...dashboard,
+          launchTasks: {
+            myTasks: myTasks.tasks || [],
+            overdueTasks: overdueTasks.tasks || [],
+            dueSoonTasks: dueSoonTasks.tasks || [],
+            highPriorityTasks: highPriorityTasks.tasks || [],
+            recentlyCompletedTasks: recentlyCompletedTasks.tasks || [],
+          },
+        });
+      } catch (err) {
+        console.error(err);
+        if (mounted) setData(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    if (user?.id) loadDashboard();
+    return () => { mounted = false; };
+  }, [user?.id]);
 
   if (loading) return (
     <div className="flex-1 flex items-center justify-center bg-[#f4f7f4]">
@@ -77,8 +194,22 @@ export default function DashboardPage() {
     </div>
   );
 
-  const { summary = {}, tasksByStatus = [], overdueTasks = [], tasksByUser = [], recentActivity = [] } = data || {};
+  const {
+    summary = {},
+    tasksByStatus = [],
+    tasksByUser = [],
+    recentActivity = [],
+    launchTasks = {},
+  } = data || {};
+  const {
+    myTasks = [],
+    overdueTasks = [],
+    dueSoonTasks = [],
+    highPriorityTasks = [],
+    recentlyCompletedTasks = [],
+  } = launchTasks;
   const total = parseInt(summary.total) || 0;
+  const canSeeTeamWorkload = user?.role === 'admin' || user?.role === 'manager';
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#f4f7f4]">
@@ -98,16 +229,74 @@ export default function DashboardPage() {
 
       <div className="p-6 space-y-6">
         {/* Summary stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Total Tasks" value={summary.total ?? 0} sub="across all operations" accent />
-          <StatCard label="In Progress" value={summary.in_progress ?? 0} sub="active right now" />
-          <StatCard label="Completed" value={summary.done ?? 0} sub="finished tasks" />
+        <div className="grid grid-cols-2 xl:grid-cols-6 gap-4">
+          <StatCard label="My Open" value={summary.my_open ?? myTasks.length} sub="assigned to me" accent />
           <StatCard
             label="Overdue"
             value={summary.overdue ?? 0}
             sub="past due date"
             accent={parseInt(summary.overdue) > 0}
           />
+          <StatCard label="Due Soon" value={summary.due_soon ?? dueSoonTasks.length} sub="next 7 days" />
+          <StatCard label="High Priority" value={summary.high_priority ?? highPriorityTasks.length} sub="critical or high" />
+          <StatCard label="In Progress" value={summary.in_progress ?? 0} sub="active right now" />
+          <StatCard label="Completed" value={summary.done ?? 0} sub="finished tasks" />
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <TaskListCard
+            title="My Tasks"
+            count={summary.my_open ?? myTasks.length}
+            tasks={myTasks}
+            empty="No open tasks assigned to you"
+            tone="green"
+          />
+          <TaskListCard
+            title="Due Soon"
+            count={summary.due_soon ?? dueSoonTasks.length}
+            tasks={dueSoonTasks}
+            empty="Nothing due in the next 7 days"
+            tone="blue"
+            showAssignee={canSeeTeamWorkload}
+          />
+          <TaskListCard
+            title="High Priority"
+            count={summary.high_priority ?? highPriorityTasks.length}
+            tasks={highPriorityTasks}
+            empty="No critical or high priority open tasks"
+            tone="orange"
+            showAssignee={canSeeTeamWorkload}
+          />
+          <TaskListCard
+            title="Overdue"
+            count={summary.overdue ?? overdueTasks.length}
+            tasks={overdueTasks}
+            empty="No overdue tasks"
+            tone="red"
+            showAssignee={canSeeTeamWorkload}
+          />
+          <TaskListCard
+            title="Recently Completed"
+            count={summary.recently_completed ?? recentlyCompletedTasks.length}
+            tasks={recentlyCompletedTasks}
+            empty="No tasks completed in the last 14 days"
+            tone="gray"
+            showAssignee={canSeeTeamWorkload}
+          />
+          <div className="card p-5">
+            <h3 className="text-sm font-black text-[#1a1a1a] mb-4">Work Summary</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg bg-gray-50 p-3">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total</p>
+                <p className="text-2xl font-black text-[#1a1a1a] font-mono mt-1">{summary.total ?? 0}</p>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Active</p>
+                <p className="text-2xl font-black text-[#1f4074] font-mono mt-1">{summary.in_progress ?? 0}</p>
+              </div>
+            </div>
+            <Link to="/tasks" className="btn-outline w-full mt-4 flex items-center justify-center">Open Tasks View</Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -141,64 +330,31 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Team workload */}
-          <div className="card p-5">
-            <h3 className="text-sm font-black text-[#1a1a1a] mb-4">Team Workload</h3>
-            {tasksByUser.length === 0 ? (
-              <p className="text-sm text-gray-300 font-medium text-center py-6">No assignments yet</p>
-            ) : (
-              <div className="space-y-3">
-                {tasksByUser.map(u => (
-                  <div key={u.id} className="flex items-center gap-3">
-                    <Avatar name={u.name} color={u.avatar_color} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-[#1a1a1a] truncate">{u.name}</p>
-                      <div className="flex gap-2 mt-0.5">
-                        <span className="text-[11px] font-bold text-blue-500">{u.open} open</span>
-                        <span className="text-[11px] text-gray-300">·</span>
-                        <span className="text-[11px] font-bold text-[#50ad32]">{u.done} done</span>
+          {canSeeTeamWorkload && (
+            <div className="card p-5">
+              <h3 className="text-sm font-black text-[#1a1a1a] mb-4">Team Workload</h3>
+              {tasksByUser.length === 0 ? (
+                <p className="text-sm text-gray-300 font-medium text-center py-6">No assignments yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {tasksByUser.map(u => (
+                    <div key={u.id} className="flex items-center gap-3">
+                      <Avatar name={u.name} color={u.avatar_color} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-[#1a1a1a] truncate">{u.name}</p>
+                        <div className="flex gap-2 mt-0.5">
+                          <span className="text-[11px] font-bold text-blue-500">{u.open} open</span>
+                          <span className="text-[11px] text-gray-300">·</span>
+                          <span className="text-[11px] font-bold text-[#50ad32]">{u.done} done</span>
+                        </div>
                       </div>
+                      <span className="text-sm font-black text-[#1a1a1a] font-mono">{u.total}</span>
                     </div>
-                    <span className="text-sm font-black text-[#1a1a1a] font-mono">{u.total}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Overdue tasks */}
-          <div className="card p-5">
-            <h3 className="text-sm font-black text-[#1a1a1a] mb-4 flex items-center gap-2">
-              Overdue Tasks
-              {overdueTasks.length > 0 && (
-                <span className="badge bg-red-50 text-red-500">{overdueTasks.length}</span>
+                  ))}
+                </div>
               )}
-            </h3>
-            {overdueTasks.length === 0 ? (
-              <div className="text-center py-6">
-                <div className="text-2xl mb-1">✅</div>
-                <p className="text-sm text-gray-400 font-semibold">All caught up!</p>
-                <p className="text-xs text-gray-300 font-medium mt-1">No overdue tasks</p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {overdueTasks.map(t => (
-                  <div key={t.id} className="p-3 rounded-xl bg-red-50 border border-red-100">
-                    <div className="flex items-start gap-2 mb-1.5">
-                      <PriorityBadge priority={t.priority} />
-                      <p className="text-sm font-bold text-[#1a1a1a] truncate flex-1">{t.title}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-mono font-bold text-gray-400">{t.operation_key}</span>
-                      <span className="text-[11px] font-bold text-red-500">
-                        Due {formatDistanceToNow(new Date(t.due_date), { addSuffix: true })}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Recent activity */}

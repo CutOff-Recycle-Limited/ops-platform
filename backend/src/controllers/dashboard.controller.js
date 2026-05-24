@@ -27,23 +27,37 @@ const getDashboard = asyncHandler(async (req, res) => {
       overdueTasks: [],
       tasksByUser: [],
       recentActivity: [],
-      summary: { total: '0', overdue: '0', done: '0', in_progress: '0' },
+      summary: {
+        total: '0',
+        overdue: '0',
+        due_soon: '0',
+        high_priority: '0',
+        recently_completed: '0',
+        my_open: '0',
+        done: '0',
+        in_progress: '0',
+      },
     });
   }
 
   const placeholders = opIds.map((_, i) => `$${i + 1}`).join(',');
+  const userParam = `$${opIds.length + 1}`;
 
   // Summary counts — most important, fix first
   const summary = await query(
     `SELECT
        COUNT(t.id) as total,
        COUNT(CASE WHEN t.due_date < CURRENT_DATE AND s.category != 'done' THEN 1 END) as overdue,
+       COUNT(CASE WHEN t.due_date >= CURRENT_DATE AND t.due_date < CURRENT_DATE + INTERVAL '8 days' AND s.category != 'done' THEN 1 END) as due_soon,
+       COUNT(CASE WHEN t.priority IN ('critical', 'high') AND s.category != 'done' THEN 1 END) as high_priority,
+       COUNT(CASE WHEN s.category = 'done' AND t.updated_at >= CURRENT_DATE - INTERVAL '14 days' THEN 1 END) as recently_completed,
+       COUNT(CASE WHEN t.assignee_id = ${userParam} AND s.category != 'done' THEN 1 END) as my_open,
        COUNT(CASE WHEN s.category = 'done' THEN 1 END) as done,
        COUNT(CASE WHEN s.category = 'in_progress' THEN 1 END) as in_progress
      FROM tasks t
      JOIN statuses s ON t.status_id = s.id
      WHERE t.operation_id IN (${placeholders})`,
-    opIds
+    [...opIds, userId]
   );
 
   // Tasks by status — only show statuses that have tasks OR belong to accessible operations

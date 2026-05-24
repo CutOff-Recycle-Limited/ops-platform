@@ -167,6 +167,46 @@ const normalizeDate = (value, field = 'due_date') => {
   return value;
 };
 
+const normalizeLimit = (value, fallback = null) => {
+  if (value === undefined || value === null || value === '') return fallback;
+
+  const limit = Number(value);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw httpError(400, 'limit must be an integer between 1 and 100');
+  }
+  return limit;
+};
+
+const normalizePriorityList = (value) => {
+  if (value === undefined || value === null || value === '') return [];
+
+  const priorities = String(value).split(',').map(item => item.trim()).filter(Boolean);
+  if (!priorities.length) return [];
+
+  priorities.forEach(priority => normalizePriority(priority));
+  return [...new Set(priorities)];
+};
+
+const normalizeStatusCategory = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  if (value === 'open') return 'open';
+  if (!VALID_SIMPLE_STATUSES.has(value)) {
+    throw httpError(400, 'status_category must be one of open, todo, in_progress, or done');
+  }
+  return value;
+};
+
+const normalizeRecentDays = (value) => {
+  if (value === undefined || value === null || value === '' || value === 'false') return null;
+  if (value === 'true' || value === '1') return 14;
+
+  const days = Number(value);
+  if (!Number.isInteger(days) || days < 1 || days > 90) {
+    throw httpError(400, 'completed_recently must be true or a number of days between 1 and 90');
+  }
+  return days;
+};
+
 const normalizeLoggedAt = (value) => {
   if (value === undefined) return undefined;
   if (value === null || value === '') throw httpError(400, 'logged_at must be a valid date or timestamp');
@@ -408,9 +448,22 @@ const createTaskForOperation = async (operationId, body, user) => {
  * Returns tasks across operations the user can access.
  */
 const listAll = asyncHandler(async (req, res) => {
-  const { assignee_id, priority, status, linked_entity_type, linked_entity_id } = req.query;
+  const {
+    assignee_id,
+    priority,
+    status,
+    status_category,
+    due_before,
+    due_after,
+    completed_recently,
+    linked_entity_type,
+    linked_entity_id,
+    limit,
+  } = req.query;
   const where = ['1 = 1'];
   const params = [];
+  const limitValue = normalizeLimit(limit);
+  const recentDays = normalizeRecentDays(completed_recently);
 
   addOperationAccessFilter(where, params, req.user);
 
@@ -420,14 +473,47 @@ const listAll = asyncHandler(async (req, res) => {
     where.push(`t.assignee_id = $${params.length}`);
   }
   if (priority) {
-    normalizePriority(priority);
-    params.push(priority);
-    where.push(`t.priority = $${params.length}`);
+    const priorities = normalizePriorityList(priority);
+    if (priorities.length === 1) {
+      params.push(priorities[0]);
+      where.push(`t.priority = $${params.length}`);
+    } else if (priorities.length > 1) {
+      params.push(priorities);
+      where.push(`t.priority = ANY($${params.length}::text[])`);
+    }
   }
   if (status) {
     if (!VALID_SIMPLE_STATUSES.has(status)) throw httpError(400, 'Status must be one of todo, in_progress, or done');
     params.push(status);
     where.push(`s.category = $${params.length}`);
+  }
+  if (status_category) {
+    const category = normalizeStatusCategory(status_category);
+    if (category === 'open') {
+      where.push(`s.category <> 'done'`);
+    } else if (category) {
+      params.push(category);
+      where.push(`s.category = $${params.length}`);
+    }
+  }
+  if (due_before !== undefined) {
+    const dueBefore = normalizeDate(due_before, 'due_before');
+    if (dueBefore) {
+      params.push(dueBefore);
+      where.push(`t.due_date < $${params.length}::date`);
+    }
+  }
+  if (due_after !== undefined) {
+    const dueAfter = normalizeDate(due_after, 'due_after');
+    if (dueAfter) {
+      params.push(dueAfter);
+      where.push(`t.due_date >= $${params.length}::date`);
+    }
+  }
+  if (recentDays) {
+    where.push(`s.category = 'done'`);
+    params.push(recentDays);
+    where.push(`t.updated_at >= CURRENT_DATE - ($${params.length}::int * INTERVAL '1 day')`);
   }
   if (linked_entity_type !== undefined) {
     const linkedEntityType = normalizeOptionalText(linked_entity_type, 'linked_entity_type', 50);
@@ -445,10 +531,15 @@ const listAll = asyncHandler(async (req, res) => {
   }
 
   const currentUserParam = addTaskSummaryUserParam(params, req.user);
+  const orderBy = recentDays ? 't.updated_at DESC, t.created_at DESC' : TASK_ORDER;
+  const limitClause = limitValue ? `LIMIT $${params.length + 1}` : '';
+  if (limitValue) params.push(limitValue);
+
   const tasks = await query(
     `${taskSelect(currentUserParam)}
      WHERE ${where.join(' AND ')}
-     ORDER BY ${TASK_ORDER}`,
+     ORDER BY ${orderBy}
+     ${limitClause}`,
     params
   );
 
