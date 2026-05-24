@@ -2,8 +2,10 @@ const { query } = require('../db');
 const { asyncHandler } = require('../middleware/error');
 const crypto = require('crypto');
 
+const VALID_USER_ROLES = new Set(['admin', 'manager', 'member']);
+
 /**
- * GET /api/users - list all users (admin/manager only)
+ * GET /api/users - list all users (admin only)
  */
 const list = asyncHandler(async (req, res) => {
   const result = await query(
@@ -19,7 +21,7 @@ const list = asyncHandler(async (req, res) => {
 const updateRole = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
-  if (!['admin', 'manager', 'member'].includes(role)) {
+  if (!VALID_USER_ROLES.has(role)) {
     return res.status(400).json({ error: 'Invalid role' });
   }
   const result = await query(
@@ -45,6 +47,10 @@ const remove = asyncHandler(async (req, res) => {
  */
 const createInvite = asyncHandler(async (req, res) => {
   const { role = 'member' } = req.body;
+  if (!VALID_USER_ROLES.has(role)) {
+    return res.status(400).json({ error: 'Invalid role' });
+  }
+
   const frontendUrl = process.env.FRONTEND_URL && process.env.FRONTEND_URL.trim();
   if (!frontendUrl) {
     return res.status(500).json({ error: 'FRONTEND_URL is required to generate invite links' });

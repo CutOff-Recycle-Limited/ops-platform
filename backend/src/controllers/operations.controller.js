@@ -1,6 +1,8 @@
 const { query } = require('../db');
 const { asyncHandler } = require('../middleware/error');
 
+const VALID_OPERATION_ROLES = new Set(['manager', 'member']);
+
 /**
  * GET /api/operations
  */
@@ -146,6 +148,12 @@ const remove = asyncHandler(async (req, res) => {
 const addMember = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { user_id, role = 'member' } = req.body;
+
+  if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+  if (!VALID_OPERATION_ROLES.has(role)) return res.status(400).json({ error: 'Invalid operation member role' });
+
+  const user = await query('SELECT id FROM users WHERE id = $1', [user_id]);
+  if (!user.rows.length) return res.status(404).json({ error: 'User not found' });
 
   await query(
     `INSERT INTO operation_members (operation_id, user_id, role) VALUES ($1,$2,$3)

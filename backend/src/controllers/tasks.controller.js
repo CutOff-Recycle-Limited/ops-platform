@@ -1,5 +1,6 @@
 const { query } = require('../db');
 const { asyncHandler } = require('../middleware/error');
+const { getOperationPermission, isAdminOrManager } = require('../middleware/auth');
 
 const VALID_PRIORITIES = new Set(['critical', 'high', 'medium', 'low']);
 const VALID_SIMPLE_STATUSES = new Set(['todo', 'in_progress', 'done']);
@@ -52,6 +53,11 @@ const httpError = (status, message) => {
   const err = new Error(message);
   err.status = status;
   return err;
+};
+
+const sameId = (left, right) => {
+  if (!left || !right) return false;
+  return String(left) === String(right);
 };
 
 const addOperationAccessFilter = (where, params, user) => {
@@ -267,10 +273,28 @@ const getTimeEntry = async (taskId, entryId) => {
   return result.rows[0];
 };
 
-const requireTimeEntryOwner = (entry, user) => {
-  if (entry.user_id !== user.id && user.role !== 'admin') {
-    throw httpError(403, 'Cannot edit time logged by another user');
+const requireTimeEntryOwnerOrManager = async (entry, task, user) => {
+  if (sameId(entry.user_id, user.id) || isAdminOrManager(user)) return;
+
+  const permission = await getOperationPermission(user, task.operation_id);
+  if (permission.canManage) return;
+
+  throw httpError(403, 'Cannot edit time logged by another user');
+};
+
+const requireTaskDeletePermission = async (task, user) => {
+  if (
+    isAdminOrManager(user) ||
+    sameId(task.reporter_id, user.id) ||
+    sameId(task.created_by_id, user.id)
+  ) {
+    return;
   }
+
+  const permission = await getOperationPermission(user, task.operation_id);
+  if (permission.canManage) return;
+
+  throw httpError(403, 'Cannot delete this task');
 };
 
 const createTaskForOperation = async (operationId, body, user) => {
@@ -712,7 +736,7 @@ const createTimeEntry = asyncHandler(async (req, res) => {
 const updateTimeEntry = asyncHandler(async (req, res) => {
   const task = await getAccessibleTask(req.params.id, req.user);
   const entry = await getTimeEntry(task.id, req.params.entryId);
-  requireTimeEntryOwner(entry, req.user);
+  await requireTimeEntryOwnerOrManager(entry, task, req.user);
 
   const allowedFields = ['minutes', 'note', 'logged_at'];
   const providedFields = Object.keys(req.body).filter(key => allowedFields.includes(key));
@@ -752,7 +776,7 @@ const updateTimeEntry = asyncHandler(async (req, res) => {
 const deleteTimeEntry = asyncHandler(async (req, res) => {
   const task = await getAccessibleTask(req.params.id, req.user);
   const entry = await getTimeEntry(task.id, req.params.entryId);
-  requireTimeEntryOwner(entry, req.user);
+  await requireTimeEntryOwnerOrManager(entry, task, req.user);
 
   await query('DELETE FROM task_time_entries WHERE id=$1 AND task_id=$2', [entry.id, task.id]);
 
@@ -816,6 +840,7 @@ const transition = asyncHandler(async (req, res) => {
  */
 const remove = asyncHandler(async (req, res) => {
   const task = await getAccessibleTask(req.params.id, req.user);
+  await requireTaskDeletePermission(task, req.user);
   await query('DELETE FROM tasks WHERE id=$1', [task.id]);
   res.json({ success: true });
 });

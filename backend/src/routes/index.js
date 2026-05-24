@@ -1,7 +1,14 @@
 const express = require('express');
 const router = express.Router();
 
-const { authenticate, requireAdmin, requireOperationAccess } = require('../middleware/auth');
+const {
+  authenticate,
+  requireAdmin,
+  requireAdminOrManager,
+  requireOperationAccess,
+  requireOperationManagerOrAdmin,
+  requireOperationOwnerOrAdmin,
+} = require('../middleware/auth');
 const authCtrl = require('../controllers/auth.controller');
 const opsCtrl = require('../controllers/operations.controller');
 const tasksCtrl = require('../controllers/tasks.controller');
@@ -20,12 +27,12 @@ router.get('/dashboard', authenticate, dashCtrl.getDashboard);
 
 // ─── Operations ──────────────────────────────────────────────────
 router.get('/operations', authenticate, opsCtrl.list);
-router.post('/operations', authenticate, opsCtrl.create);
+router.post('/operations', authenticate, requireAdminOrManager, opsCtrl.create);
 router.get('/operations/:id', authenticate, requireOperationAccess, opsCtrl.getOne);
-router.put('/operations/:id', authenticate, requireOperationAccess, opsCtrl.update);
-router.delete('/operations/:id', authenticate, requireAdmin, opsCtrl.remove);
-router.post('/operations/:id/members', authenticate, requireOperationAccess, opsCtrl.addMember);
-router.delete('/operations/:id/members/:userId', authenticate, requireOperationAccess, opsCtrl.removeMember);
+router.put('/operations/:id', authenticate, requireOperationManagerOrAdmin, opsCtrl.update);
+router.delete('/operations/:id', authenticate, requireOperationOwnerOrAdmin, opsCtrl.remove);
+router.post('/operations/:id/members', authenticate, requireOperationManagerOrAdmin, opsCtrl.addMember);
+router.delete('/operations/:id/members/:userId', authenticate, requireOperationManagerOrAdmin, opsCtrl.removeMember);
 
 // ─── Tasks ───────────────────────────────────────────────────────
 router.get('/tasks', authenticate, tasksCtrl.listAll);
@@ -50,7 +57,7 @@ router.put('/comments/:id', authenticate, commentsCtrl.update);
 router.delete('/comments/:id', authenticate, commentsCtrl.remove);
 
 // ─── Users & Invites ─────────────────────────────────────────────
-router.get('/users', authenticate, usersCtrl.list);
+router.get('/users', authenticate, requireAdmin, usersCtrl.list);
 router.put('/users/:id/role', authenticate, requireAdmin, usersCtrl.updateRole);
 router.delete('/users/:id', authenticate, requireAdmin, usersCtrl.remove);
 router.post('/invites', authenticate, requireAdmin, usersCtrl.createInvite);

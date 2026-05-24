@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { query, getClient } = require('../db');
-const { generateToken } = require('../middleware/auth');
+const { generateToken, isAdmin } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/error');
 
 const register = asyncHandler(async (req, res) => {
@@ -96,9 +96,30 @@ const me = asyncHandler(async (req, res) => {
 });
 
 const listUsers = asyncHandler(async (req, res) => {
+  if (isAdmin(req.user)) {
+    const result = await query(
+      'SELECT id, name, email, role, avatar_color FROM users ORDER BY name',
+      []
+    );
+    return res.json({ users: result.rows });
+  }
+
   const result = await query(
-    'SELECT id, name, email, role, avatar_color FROM users ORDER BY name',
-    []
+    `SELECT DISTINCT u.id, u.name, NULL::text as email, NULL::text as role, u.avatar_color
+     FROM users u
+     WHERE u.id = $1
+        OR EXISTS (
+          SELECT 1
+          FROM operations o
+          LEFT JOIN operation_members current_member
+            ON current_member.operation_id = o.id AND current_member.user_id = $1
+          LEFT JOIN operation_members target_member
+            ON target_member.operation_id = o.id AND target_member.user_id = u.id
+          WHERE (o.owner_id = $1 OR current_member.user_id = $1)
+            AND (o.owner_id = u.id OR target_member.user_id = u.id)
+        )
+     ORDER BY u.name`,
+    [req.user.id]
   );
   res.json({ users: result.rows });
 });
