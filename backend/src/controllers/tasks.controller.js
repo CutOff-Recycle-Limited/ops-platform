@@ -14,19 +14,67 @@ const taskSelect = (currentUserParam = 'NULL') => `
     s.name as status_name, s.color as status_color, s.position as status_position,
     u.name as assignee_name, u.avatar_color as assignee_color,
     r.name as reporter_name, r.avatar_color as reporter_color,
-    cb.name as created_by_name,
-    o.name as operation_name, o.key as operation_key, o.color as operation_color,
-    (SELECT COALESCE(SUM(te.minutes), 0)::int FROM task_time_entries te WHERE te.task_id = t.id) as total_logged_minutes,
-    (SELECT COALESCE(SUM(te.minutes), 0)::int FROM task_time_entries te WHERE te.task_id = t.id AND te.user_id = ${currentUserParam}::uuid) as current_user_logged_minutes,
-    (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id) as comment_count,
+	    cb.name as created_by_name,
+	    o.name as operation_name, o.key as operation_key, o.color as operation_color,
+	    CASE
+	      WHEN crm_customer.id IS NOT NULL THEN jsonb_build_object(
+	        'type', 'customer',
+	        'id', crm_customer.id,
+	        'source', 'crm',
+	        'label', crm_customer.name,
+	        'summary', NULLIF(concat_ws(' · ',
+	          CASE WHEN crm_customer.lead_score IS NOT NULL THEN crm_customer.lead_score || ' lead' END,
+	          crm_customer.region
+	        ), ''),
+	        'customer_id', crm_customer.id,
+	        'customer_name', crm_customer.name,
+	        'customer_phone', crm_customer.phone,
+	        'lead_score', crm_customer.lead_score,
+	        'region', crm_customer.region
+	      )
+	      WHEN crm_interaction.id IS NOT NULL THEN jsonb_build_object(
+	        'type', 'interaction',
+	        'id', crm_interaction.id,
+	        'source', 'crm',
+	        'label', initcap(replace(crm_interaction.channel, '_', ' ')) || ' with ' || COALESCE(crm_interaction_customer.name, 'customer'),
+	        'summary', NULLIF(concat_ws(' · ',
+	          crm_interaction.outcome,
+	          CASE WHEN crm_insight.urgency IS NOT NULL THEN crm_insight.urgency || ' urgency' END,
+	          CASE WHEN crm_insight.sentiment IS NOT NULL THEN crm_insight.sentiment || ' sentiment' END
+	        ), ''),
+	        'customer_id', crm_interaction.customer_id,
+	        'customer_name', crm_interaction_customer.name,
+	        'customer_phone', crm_interaction_customer.phone,
+	        'channel', crm_interaction.channel,
+	        'direction', crm_interaction.direction,
+	        'outcome', crm_interaction.outcome,
+	        'urgency', crm_insight.urgency,
+	        'sentiment', crm_insight.sentiment,
+	        'category', crm_insight.category
+	      )
+	      ELSE NULL
+	    END as linked_entity,
+	    (SELECT COALESCE(SUM(te.minutes), 0)::int FROM task_time_entries te WHERE te.task_id = t.id) as total_logged_minutes,
+	    (SELECT COALESCE(SUM(te.minutes), 0)::int FROM task_time_entries te WHERE te.task_id = t.id AND te.user_id = ${currentUserParam}::uuid) as current_user_logged_minutes,
+	    (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id) as comment_count,
     (SELECT COUNT(*) FROM tasks sub WHERE sub.parent_id = t.id) as subtask_count
   FROM tasks t
   JOIN operations o ON t.operation_id = o.id
   LEFT JOIN users u ON t.assignee_id = u.id
-  LEFT JOIN users r ON t.reporter_id = r.id
-  LEFT JOIN users cb ON COALESCE(t.created_by_id, t.reporter_id) = cb.id
-  LEFT JOIN statuses s ON t.status_id = s.id
-`;
+	  LEFT JOIN users r ON t.reporter_id = r.id
+	  LEFT JOIN users cb ON COALESCE(t.created_by_id, t.reporter_id) = cb.id
+	  LEFT JOIN statuses s ON t.status_id = s.id
+	  LEFT JOIN customers crm_customer
+	    ON t.linked_entity_type = 'customer'
+	   AND crm_customer.id::text = t.linked_entity_id
+	  LEFT JOIN interactions crm_interaction
+	    ON t.linked_entity_type = 'interaction'
+	   AND crm_interaction.id::text = t.linked_entity_id
+	  LEFT JOIN customers crm_interaction_customer
+	    ON crm_interaction_customer.id = crm_interaction.customer_id
+	  LEFT JOIN ai_insights crm_insight
+	    ON crm_insight.interaction_id = crm_interaction.id
+	`;
 
 const TASK_ORDER = `
   CASE WHEN s.category = 'done' THEN 1 ELSE 0 END,
@@ -360,7 +408,7 @@ const createTaskForOperation = async (operationId, body, user) => {
  * Returns tasks across operations the user can access.
  */
 const listAll = asyncHandler(async (req, res) => {
-  const { assignee_id, priority, status } = req.query;
+  const { assignee_id, priority, status, linked_entity_type, linked_entity_id } = req.query;
   const where = ['1 = 1'];
   const params = [];
 
@@ -380,6 +428,20 @@ const listAll = asyncHandler(async (req, res) => {
     if (!VALID_SIMPLE_STATUSES.has(status)) throw httpError(400, 'Status must be one of todo, in_progress, or done');
     params.push(status);
     where.push(`s.category = $${params.length}`);
+  }
+  if (linked_entity_type !== undefined) {
+    const linkedEntityType = normalizeOptionalText(linked_entity_type, 'linked_entity_type', 50);
+    if (linkedEntityType) {
+      params.push(linkedEntityType);
+      where.push(`t.linked_entity_type = $${params.length}`);
+    }
+  }
+  if (linked_entity_id !== undefined) {
+    const linkedEntityId = normalizeOptionalText(linked_entity_id, 'linked_entity_id', 120);
+    if (linkedEntityId) {
+      params.push(linkedEntityId);
+      where.push(`t.linked_entity_id = $${params.length}`);
+    }
   }
 
   const currentUserParam = addTaskSummaryUserParam(params, req.user);
@@ -420,7 +482,7 @@ const today = asyncHandler(async (req, res) => {
  */
 const list = asyncHandler(async (req, res) => {
   const { operationId } = req.params;
-  const { assignee_id, priority, type } = req.query;
+  const { assignee_id, priority, type, linked_entity_type, linked_entity_id } = req.query;
 
   let whereClause = 'WHERE t.operation_id = $1';
   const params = [operationId];
@@ -440,6 +502,20 @@ const list = asyncHandler(async (req, res) => {
     normalizeType(type);
     whereClause += ` AND t.type = $${i++}`;
     params.push(type);
+  }
+  if (linked_entity_type !== undefined) {
+    const linkedEntityType = normalizeOptionalText(linked_entity_type, 'linked_entity_type', 50);
+    if (linkedEntityType) {
+      whereClause += ` AND t.linked_entity_type = $${i++}`;
+      params.push(linkedEntityType);
+    }
+  }
+  if (linked_entity_id !== undefined) {
+    const linkedEntityId = normalizeOptionalText(linked_entity_id, 'linked_entity_id', 120);
+    if (linkedEntityId) {
+      whereClause += ` AND t.linked_entity_id = $${i++}`;
+      params.push(linkedEntityId);
+    }
   }
 
   const currentUserParam = addTaskSummaryUserParam(params, req.user);

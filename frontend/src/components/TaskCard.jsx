@@ -20,6 +20,7 @@ function formatLoggedMinutes(value) {
 export default function TaskCard({ task, operationKey, onClick, onDragStart, onDragEnd }) {
   const isOverdue = task.due_date && isPast(new Date(task.due_date));
   const typeIcon = TYPE_ICONS[task.type] || TYPE_ICONS.task;
+  const crmLabel = task.linked_entity?.source === 'crm' ? task.linked_entity.label : null;
 
   return (
     <div
@@ -48,6 +49,11 @@ export default function TaskCard({ task, operationKey, onClick, onDragStart, onD
       <p className="text-sm text-[#1a1a1a] font-bold leading-snug mb-3 group-hover:text-[#50ad32] transition-colors line-clamp-2">
         {task.title}
       </p>
+      {crmLabel && (
+        <p className="text-[11px] text-[#1f4074] font-bold mb-3 truncate">
+          CRM: {crmLabel}
+        </p>
+      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between">

@@ -20,6 +20,53 @@ function formatLoggedMinutes(value) {
   return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
 }
 
+function LinkedCrmContext({ task }) {
+  const linked = task.linked_entity;
+  if (!linked && !task.linked_entity_type && !task.linked_entity_id) return null;
+
+  if (!linked) {
+    return (
+      <div className="mb-5 p-3 rounded-lg bg-[#1f4074]/5 border border-[#1f4074]/10">
+        <p className="label">Linked Entity</p>
+        <p className="text-xs text-[#1f4074] font-mono">
+          {[task.linked_entity_type, task.linked_entity_id].filter(Boolean).join(': ')}
+        </p>
+      </div>
+    );
+  }
+
+  const details = [
+    linked.customer_name && ['Customer', linked.customer_phone ? `${linked.customer_name} · ${linked.customer_phone}` : linked.customer_name],
+    linked.channel && ['Interaction', [linked.channel, linked.outcome].filter(Boolean).join(' · ')],
+    linked.lead_score && ['Lead score', linked.lead_score],
+    linked.urgency && ['Urgency', linked.urgency],
+    linked.sentiment && ['Sentiment', linked.sentiment],
+  ].filter(Boolean);
+
+  return (
+    <div className="mb-5 p-3 rounded-lg bg-[#1f4074]/5 border border-[#1f4074]/10">
+      <p className="label">Linked CRM Context</p>
+      <div className="space-y-2">
+        <div>
+          <p className="text-sm font-black text-[#1a1a1a]">{linked.label}</p>
+          {linked.summary && <p className="text-xs text-gray-500 font-semibold mt-0.5">{linked.summary}</p>}
+        </div>
+        <div className="grid grid-cols-1 gap-1.5">
+          {details.map(([label, value]) => (
+            <div key={label} className="flex justify-between gap-3 text-xs">
+              <span className="text-gray-400 font-bold">{label}</span>
+              <span className="text-gray-700 font-semibold text-right capitalize">{value}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-gray-300 font-mono break-all">
+          {task.linked_entity_type}: {task.linked_entity_id}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function TaskModal({ taskId, operationKey, statuses = [], transitions = [], users = [], onClose, onUpdate }) {
   const { task, subtasks, comments, activity, loading, reload, setTask, setCommentList } = useTask(taskId);
   const [editing, setEditing] = useState(false);
@@ -139,6 +186,8 @@ export default function TaskModal({ taskId, operationKey, statuses = [], transit
             </p>
           )}
         </div>
+
+        <LinkedCrmContext task={task} />
 
         {/* Subtasks */}
         {subtasks.length > 0 && (

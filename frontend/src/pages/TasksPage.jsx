@@ -243,9 +243,12 @@ function TaskRow({
   onEditTime,
   onDeleteTime,
 }) {
-  const linkedReference = task.linked_entity_type || task.linked_entity_id
+  const linkedReference = task.linked_entity?.label
+    ? `CRM: ${task.linked_entity.label}`
+    : task.linked_entity_type || task.linked_entity_id
     ? [task.linked_entity_type, task.linked_entity_id].filter(Boolean).join(': ')
     : null;
+  const linkedSummary = task.linked_entity?.summary;
   const dueDate = formatDueDate(task.due_date);
   const canonicalTaskPath = `/operations/${task.operation_id}?task=${task.id}`;
 
@@ -277,7 +280,10 @@ function TaskRow({
               </span>
             )}
             {linkedReference && (
-              <span className="font-mono text-[#1f4074]">{linkedReference}</span>
+              <span className="text-[#1f4074]">
+                {linkedReference}
+                {linkedSummary ? <span className="text-gray-400"> · {linkedSummary}</span> : null}
+              </span>
             )}
             <span className="text-[#1f4074]">Logged: {formatLoggedMinutes(task.total_logged_minutes)}</span>
             <span>{formatDistanceToNow(new Date(task.created_at), { addSuffix: true })}</span>
