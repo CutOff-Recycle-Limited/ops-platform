@@ -45,7 +45,7 @@ const register = asyncHandler(async (req, res) => {
     const tokenRow = tokenResult.rows[0];
     const result = await client.query(
       `INSERT INTO users (name, email, password_hash, role, avatar_color)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id, name, email, role, avatar_color`,
+       VALUES ($1,$2,$3,$4,$5) RETURNING id, name, email, role, avatar_color, disabled_at`,
       [name.trim(), email.toLowerCase(), hash, tokenRow.role, avatarColor]
     );
 
@@ -75,7 +75,7 @@ const login = asyncHandler(async (req, res) => {
   }
 
   const result = await query(
-    'SELECT id, name, email, password_hash, role, avatar_color FROM users WHERE email = $1',
+    'SELECT id, name, email, password_hash, role, avatar_color, disabled_at FROM users WHERE email = $1',
     [email.toLowerCase()]
   );
   if (!result.rows.length) {
@@ -83,6 +83,8 @@ const login = asyncHandler(async (req, res) => {
   }
 
   const user = result.rows[0];
+  if (user.disabled_at) return res.status(403).json({ error: 'Account is disabled' });
+
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
@@ -98,16 +100,16 @@ const me = asyncHandler(async (req, res) => {
 const listUsers = asyncHandler(async (req, res) => {
   if (isAdmin(req.user)) {
     const result = await query(
-      'SELECT id, name, email, role, avatar_color FROM users ORDER BY name',
+      'SELECT id, name, email, role, avatar_color, disabled_at FROM users WHERE disabled_at IS NULL ORDER BY name',
       []
     );
     return res.json({ users: result.rows });
   }
 
   const result = await query(
-    `SELECT DISTINCT u.id, u.name, NULL::text as email, NULL::text as role, u.avatar_color
+    `SELECT DISTINCT u.id, u.name, NULL::text as email, NULL::text as role, u.avatar_color, u.disabled_at
      FROM users u
-     WHERE u.id = $1
+     WHERE (u.id = $1 AND u.disabled_at IS NULL)
         OR EXISTS (
           SELECT 1
           FROM operations o
@@ -117,6 +119,7 @@ const listUsers = asyncHandler(async (req, res) => {
             ON target_member.operation_id = o.id AND target_member.user_id = u.id
           WHERE (o.owner_id = $1 OR current_member.user_id = $1)
             AND (o.owner_id = u.id OR target_member.user_id = u.id)
+            AND u.disabled_at IS NULL
         )
      ORDER BY u.name`,
     [req.user.id]

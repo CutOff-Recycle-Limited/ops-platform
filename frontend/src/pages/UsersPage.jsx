@@ -70,11 +70,25 @@ export default function UsersPage() {
     }
   };
 
-  const handleDelete = async (userId, name) => {
-    if (!confirm(`Remove ${name} from the platform?`)) return;
+  const replaceUser = (nextUser) => {
+    setUserList(prev => prev.map(u => u.id === nextUser.id ? nextUser : u));
+  };
+
+  const handleDisable = async (userId, name) => {
+    if (!confirm(`Disable access for ${name}? Historical tasks and activity will remain visible.`)) return;
     try {
-      await usersApi.delete(userId);
-      setUserList(prev => prev.filter(u => u.id !== userId));
+      const res = await usersApi.disable(userId);
+      replaceUser(res.user);
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  const handleEnable = async (userId, name) => {
+    if (!confirm(`Re-enable access for ${name}?`)) return;
+    try {
+      const res = await usersApi.enable(userId);
+      replaceUser(res.user);
     } catch (e) {
       alert(e.message);
     }
@@ -86,7 +100,9 @@ export default function UsersPage() {
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shadow-sm">
         <div>
           <h1 className="font-black text-[#1a1a1a] text-lg">Team & Users</h1>
-          <p className="text-xs text-gray-400 font-semibold mt-0.5">{userList.length} team members</p>
+          <p className="text-xs text-gray-400 font-semibold mt-0.5">
+            {userList.filter(u => !u.disabled_at).length} active · {userList.filter(u => u.disabled_at).length} disabled
+          </p>
         </div>
         {isAdmin && (
           <button
@@ -114,7 +130,7 @@ export default function UsersPage() {
           ) : (
             <div className="divide-y divide-gray-50">
               {userList.map(u => (
-                <div key={u.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors">
+                <div key={u.id} className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${u.disabled_at ? 'bg-gray-50 opacity-75' : 'hover:bg-gray-50'}`}>
                   <Avatar name={u.name} color={u.avatar_color} size="md" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -122,6 +138,9 @@ export default function UsersPage() {
                       {u.id === currentUser?.id && (
                         <span className="text-[10px] font-black text-[#50ad32] bg-[#50ad32]/10 px-1.5 py-0.5 rounded">YOU</span>
                       )}
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${u.disabled_at ? 'text-red-600 bg-red-50' : 'text-[#50ad32] bg-[#50ad32]/10'}`}>
+                        {u.disabled_at ? 'Disabled' : 'Active'}
+                      </span>
                     </div>
                     <p className="text-xs text-gray-400 font-medium">{u.email}</p>
                   </div>
@@ -146,15 +165,21 @@ export default function UsersPage() {
                   </p>
 
                   {isAdmin && u.id !== currentUser?.id && (
-                    <button
-                      onClick={() => handleDelete(u.id, u.name)}
-                      className="text-gray-300 hover:text-red-500 transition-colors ml-1"
-                      title="Remove user"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    u.disabled_at ? (
+                      <button
+                        onClick={() => handleEnable(u.id, u.name)}
+                        className="text-xs font-bold text-[#50ad32] bg-[#50ad32]/10 hover:bg-[#50ad32]/20 rounded-lg px-3 py-1.5 transition-colors"
+                      >
+                        Re-enable
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleDisable(u.id, u.name)}
+                        className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg px-3 py-1.5 transition-colors"
+                      >
+                        Disable
+                      </button>
+                    )
                   )}
                 </div>
               ))}

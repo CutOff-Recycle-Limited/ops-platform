@@ -15,6 +15,12 @@ async function migrate() {
     await client.query(sharedSchema);
     console.log('Shared CRM and competitor schema applied.');
 
+    await client.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS disabled_at TIMESTAMPTZ
+    `);
+    console.log('User deactivation field ready.');
+
     // Additive task execution-layer fields for existing databases.
     await client.query(`
       ALTER TABLE tasks

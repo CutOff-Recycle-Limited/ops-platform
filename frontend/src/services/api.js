@@ -77,6 +77,8 @@ export const dashboard = {
 export const users = {
   list: () => request('/users'),
   updateRole: (id, role) => request(`/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+  disable: (id) => request(`/users/${id}/disable`, { method: 'PATCH' }),
+  enable: (id) => request(`/users/${id}/enable`, { method: 'PATCH' }),
   delete: (id) => request(`/users/${id}`, { method: 'DELETE' }),
 };
 

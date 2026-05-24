@@ -4,12 +4,14 @@ const crypto = require('crypto');
 
 const VALID_USER_ROLES = new Set(['admin', 'manager', 'member']);
 
+const USER_SELECT = 'id, name, email, role, avatar_color, disabled_at, created_at';
+
 /**
  * GET /api/users - list all users (admin only)
  */
 const list = asyncHandler(async (req, res) => {
   const result = await query(
-    `SELECT id, name, email, role, avatar_color, created_at FROM users ORDER BY name`,
+    `SELECT ${USER_SELECT} FROM users ORDER BY name`,
     []
   );
   res.json({ users: result.rows });
@@ -25,7 +27,7 @@ const updateRole = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Invalid role' });
   }
   const result = await query(
-    `UPDATE users SET role=$1, updated_at=NOW() WHERE id=$2 RETURNING id, name, email, role`,
+    `UPDATE users SET role=$1, updated_at=NOW() WHERE id=$2 RETURNING ${USER_SELECT}`,
     [role, id]
   );
   if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
@@ -33,13 +35,52 @@ const updateRole = asyncHandler(async (req, res) => {
 });
 
 /**
- * DELETE /api/users/:id - remove user (admin only)
+ * DELETE /api/users/:id - legacy soft-disable action (admin only)
  */
 const remove = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  if (id === req.user.id) return res.status(400).json({ error: 'Cannot delete yourself' });
-  await query('DELETE FROM users WHERE id=$1', [id]);
-  res.json({ success: true });
+  if (id === req.user.id) return res.status(400).json({ error: 'Cannot disable yourself' });
+
+  const result = await query(
+    `UPDATE users SET disabled_at=COALESCE(disabled_at, NOW()), updated_at=NOW()
+     WHERE id=$1
+     RETURNING ${USER_SELECT}`,
+    [id]
+  );
+  if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
+  res.json({ success: true, user: result.rows[0] });
+});
+
+/**
+ * PATCH /api/users/:id/disable - disable a user (admin only)
+ */
+const disable = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (id === req.user.id) return res.status(400).json({ error: 'Cannot disable yourself' });
+
+  const result = await query(
+    `UPDATE users SET disabled_at=COALESCE(disabled_at, NOW()), updated_at=NOW()
+     WHERE id=$1
+     RETURNING ${USER_SELECT}`,
+    [id]
+  );
+  if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
+  res.json({ user: result.rows[0] });
+});
+
+/**
+ * PATCH /api/users/:id/enable - re-enable a user (admin only)
+ */
+const enable = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const result = await query(
+    `UPDATE users SET disabled_at=NULL, updated_at=NOW()
+     WHERE id=$1
+     RETURNING ${USER_SELECT}`,
+    [id]
+  );
+  if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
+  res.json({ user: result.rows[0] });
 });
 
 /**
@@ -116,4 +157,4 @@ const validateInvite = asyncHandler(async (req, res) => {
   res.json({ valid: true, role: result.rows[0].role });
 });
 
-module.exports = { list, updateRole, remove, createInvite, listInvites, validateInvite };
+module.exports = { list, updateRole, remove, disable, enable, createInvite, listInvites, validateInvite };

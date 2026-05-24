@@ -59,6 +59,8 @@ router.delete('/comments/:id', authenticate, commentsCtrl.remove);
 // ─── Users & Invites ─────────────────────────────────────────────
 router.get('/users', authenticate, requireAdmin, usersCtrl.list);
 router.put('/users/:id/role', authenticate, requireAdmin, usersCtrl.updateRole);
+router.patch('/users/:id/disable', authenticate, requireAdmin, usersCtrl.disable);
+router.patch('/users/:id/enable', authenticate, requireAdmin, usersCtrl.enable);
 router.delete('/users/:id', authenticate, requireAdmin, usersCtrl.remove);
 router.post('/invites', authenticate, requireAdmin, usersCtrl.createInvite);
 router.get('/invites', authenticate, requireAdmin, usersCtrl.listInvites);

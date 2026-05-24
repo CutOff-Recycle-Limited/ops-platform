@@ -55,8 +55,9 @@ const authenticate = async (req, res, next) => {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const result = await query('SELECT id, name, email, role, avatar_color FROM users WHERE id = $1', [decoded.userId]);
+    const result = await query('SELECT id, name, email, role, avatar_color, disabled_at FROM users WHERE id = $1', [decoded.userId]);
     if (!result.rows.length) return res.status(401).json({ error: 'User not found' });
+    if (result.rows[0].disabled_at) return res.status(403).json({ error: 'Account is disabled' });
     req.user = result.rows[0];
     next();
   } catch (err) {
