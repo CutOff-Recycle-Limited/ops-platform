@@ -11,6 +11,22 @@ const ROLE_COLORS = {
   member: 'bg-gray-100 text-gray-600',
 };
 
+const CRM_ROLE_OPTIONS = [
+  { value: '', label: 'No CRM' },
+  { value: 'admin', label: 'CRM admin' },
+  { value: 'staff', label: 'CRM staff' },
+  { value: 'sales', label: 'CRM sales' },
+  { value: 'agronomist', label: 'CRM agronomist' },
+  { value: 'operations', label: 'CRM operations' },
+];
+
+const COMPETITOR_ROLE_OPTIONS = [
+  { value: '', label: 'No Competitor' },
+  { value: 'admin', label: 'Intel admin' },
+  { value: 'researcher', label: 'Intel researcher' },
+  { value: 'viewer', label: 'Intel viewer' },
+];
+
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
   const [userList, setUserList] = useState([]);
@@ -63,8 +79,8 @@ export default function UsersPage() {
 
   const handleRoleChange = async (userId, role) => {
     try {
-      await usersApi.updateRole(userId, role);
-      setUserList(prev => prev.map(u => u.id === userId ? { ...u, role } : u));
+      const res = await usersApi.updateRole(userId, role);
+      replaceUser(res.user);
     } catch (e) {
       alert(e.message);
     }
@@ -94,6 +110,17 @@ export default function UsersPage() {
     }
   };
 
+  const handlePlatformRoleChange = async (userId, platform, role) => {
+    try {
+      const res = role
+        ? await usersApi.updatePlatformRole(userId, platform, role)
+        : await usersApi.deletePlatformRole(userId, platform);
+      replaceUser(res.user);
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto">
       {/* Header */}
@@ -117,7 +144,7 @@ export default function UsersPage() {
         )}
       </div>
 
-      <div className="p-6 space-y-6 max-w-4xl">
+      <div className="p-6 space-y-6 max-w-6xl">
         {/* Users table */}
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
@@ -145,20 +172,47 @@ export default function UsersPage() {
                     <p className="text-xs text-gray-400 font-medium">{u.email}</p>
                   </div>
 
-                  {/* Role selector */}
-                  {isAdmin && u.id !== currentUser?.id ? (
-                    <select
-                      value={u.role}
-                      onChange={e => handleRoleChange(u.id, e.target.value)}
-                      className="text-xs font-bold border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#50ad32] bg-white"
-                    >
-                      <option value="member">Member</option>
-                      <option value="manager">Manager</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  ) : (
-                    <span className={`badge capitalize ${ROLE_COLORS[u.role]}`}>{u.role}</span>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isAdmin && u.id !== currentUser?.id ? (
+                      <select
+                        value={u.role}
+                        onChange={e => handleRoleChange(u.id, e.target.value)}
+                        className="text-xs font-bold border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#50ad32] bg-white"
+                        aria-label={`Ops role for ${u.name}`}
+                      >
+                        <option value="member">Ops member</option>
+                        <option value="manager">Ops manager</option>
+                        <option value="admin">Ops admin</option>
+                      </select>
+                    ) : (
+                      <span className={`badge capitalize ${ROLE_COLORS[u.role]}`}>Ops {u.role}</span>
+                    )}
+
+                    {isAdmin && (
+                      <>
+                        <select
+                          value={u.platform_roles?.crm || ''}
+                          onChange={e => handlePlatformRoleChange(u.id, 'crm', e.target.value)}
+                          className="text-xs font-bold border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#50ad32] bg-white"
+                          aria-label={`CRM role for ${u.name}`}
+                        >
+                          {CRM_ROLE_OPTIONS.map(option => (
+                            <option key={option.value || 'none'} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={u.platform_roles?.competitor_intel || ''}
+                          onChange={e => handlePlatformRoleChange(u.id, 'competitor_intel', e.target.value)}
+                          className="text-xs font-bold border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#50ad32] bg-white"
+                          aria-label={`Competitor role for ${u.name}`}
+                        >
+                          {COMPETITOR_ROLE_OPTIONS.map(option => (
+                            <option key={option.value || 'none'} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </>
+                    )}
+                  </div>
 
                   <p className="text-xs text-gray-400 font-medium w-28 text-right hidden sm:block">
                     Joined {formatDistanceToNow(new Date(u.created_at), { addSuffix: true })}

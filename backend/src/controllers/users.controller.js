@@ -3,8 +3,67 @@ const { asyncHandler } = require('../middleware/error');
 const crypto = require('crypto');
 
 const VALID_USER_ROLES = new Set(['admin', 'manager', 'member']);
+const PLATFORM_ROLE_OPTIONS = {
+  crm: new Set(['admin', 'staff', 'sales', 'agronomist', 'operations']),
+  competitor_intel: new Set(['admin', 'researcher', 'viewer']),
+};
+const VALID_PLATFORMS = Object.keys(PLATFORM_ROLE_OPTIONS);
 
 const USER_SELECT = 'id, name, email, role, avatar_color, disabled_at, created_at';
+
+const emptyPlatformRoles = () => Object.fromEntries(VALID_PLATFORMS.map(platform => [platform, null]));
+
+const validatePlatform = (platform) => VALID_PLATFORMS.includes(platform);
+
+const validatePlatformRole = (platform, role) => (
+  validatePlatform(platform) && PLATFORM_ROLE_OPTIONS[platform].has(role)
+);
+
+const attachPlatformRoles = async (users) => {
+  if (!users.length) return users;
+
+  const roleResult = await query(
+    `SELECT user_id, platform, role
+     FROM user_platform_roles
+     WHERE user_id = ANY($1::uuid[])
+       AND platform = ANY($2::text[])`,
+    [users.map(user => user.id), VALID_PLATFORMS]
+  );
+
+  const byUser = new Map(users.map(user => [String(user.id), emptyPlatformRoles()]));
+  for (const row of roleResult.rows) {
+    const roles = byUser.get(String(row.user_id));
+    if (roles) roles[row.platform] = row.role;
+  }
+
+  return users.map(user => ({
+    ...user,
+    platform_roles: byUser.get(String(user.id)) || emptyPlatformRoles(),
+  }));
+};
+
+const getUserWithPlatformRoles = async (id) => {
+  const result = await query(`SELECT ${USER_SELECT} FROM users WHERE id=$1`, [id]);
+  if (!result.rows.length) return null;
+  const [user] = await attachPlatformRoles(result.rows);
+  return user;
+};
+
+const getPlatformRoleSummary = async (userId) => {
+  const result = await query(
+    `SELECT platform, role
+     FROM user_platform_roles
+     WHERE user_id=$1
+       AND platform = ANY($2::text[])
+     ORDER BY platform`,
+    [userId, VALID_PLATFORMS]
+  );
+
+  return result.rows.reduce((roles, row) => {
+    roles[row.platform] = row.role;
+    return roles;
+  }, emptyPlatformRoles());
+};
 
 /**
  * GET /api/users - list all users (admin only)
@@ -14,7 +73,8 @@ const list = asyncHandler(async (req, res) => {
     `SELECT ${USER_SELECT} FROM users ORDER BY name`,
     []
   );
-  res.json({ users: result.rows });
+  const users = await attachPlatformRoles(result.rows);
+  res.json({ users });
 });
 
 /**
@@ -31,7 +91,8 @@ const updateRole = asyncHandler(async (req, res) => {
     [role, id]
   );
   if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
-  res.json({ user: result.rows[0] });
+  const [user] = await attachPlatformRoles(result.rows);
+  res.json({ user });
 });
 
 /**
@@ -48,7 +109,8 @@ const remove = asyncHandler(async (req, res) => {
     [id]
   );
   if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
-  res.json({ success: true, user: result.rows[0] });
+  const [user] = await attachPlatformRoles(result.rows);
+  res.json({ success: true, user });
 });
 
 /**
@@ -65,7 +127,8 @@ const disable = asyncHandler(async (req, res) => {
     [id]
   );
   if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
-  res.json({ user: result.rows[0] });
+  const [user] = await attachPlatformRoles(result.rows);
+  res.json({ user });
 });
 
 /**
@@ -80,7 +143,79 @@ const enable = asyncHandler(async (req, res) => {
     [id]
   );
   if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
-  res.json({ user: result.rows[0] });
+  const [user] = await attachPlatformRoles(result.rows);
+  res.json({ user });
+});
+
+/**
+ * GET /api/users/:id/platform-roles - read cross-platform roles (admin only)
+ */
+const getPlatformRoles = asyncHandler(async (req, res) => {
+  const user = await getUserWithPlatformRoles(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  res.json({
+    user_id: user.id,
+    platform_roles: user.platform_roles,
+  });
+});
+
+/**
+ * PUT /api/users/:id/platform-roles - upsert one cross-platform role (admin only)
+ */
+const upsertPlatformRole = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { platform, role } = req.body;
+
+  if (!validatePlatform(platform)) {
+    return res.status(400).json({ error: 'Invalid platform' });
+  }
+  if (!validatePlatformRole(platform, role)) {
+    return res.status(400).json({ error: 'Invalid role for platform' });
+  }
+
+  const userExists = await query('SELECT id FROM users WHERE id=$1', [id]);
+  if (!userExists.rows.length) return res.status(404).json({ error: 'User not found' });
+
+  await query(
+    `INSERT INTO user_platform_roles (user_id, platform, role)
+     VALUES ($1,$2,$3)
+     ON CONFLICT (user_id, platform)
+     DO UPDATE SET role=EXCLUDED.role, updated_at=NOW()`,
+    [id, platform, role]
+  );
+
+  const user = await getUserWithPlatformRoles(id);
+  res.json({
+    user,
+    platform_roles: await getPlatformRoleSummary(id),
+  });
+});
+
+/**
+ * DELETE /api/users/:id/platform-roles/:platform - remove one cross-platform role (admin only)
+ */
+const removePlatformRole = asyncHandler(async (req, res) => {
+  const { id, platform } = req.params;
+
+  if (!validatePlatform(platform)) {
+    return res.status(400).json({ error: 'Invalid platform' });
+  }
+
+  const userExists = await query('SELECT id FROM users WHERE id=$1', [id]);
+  if (!userExists.rows.length) return res.status(404).json({ error: 'User not found' });
+
+  await query(
+    `DELETE FROM user_platform_roles
+     WHERE user_id=$1 AND platform=$2`,
+    [id, platform]
+  );
+
+  const user = await getUserWithPlatformRoles(id);
+  res.json({
+    user,
+    platform_roles: await getPlatformRoleSummary(id),
+  });
 });
 
 /**
@@ -157,4 +292,16 @@ const validateInvite = asyncHandler(async (req, res) => {
   res.json({ valid: true, role: result.rows[0].role });
 });
 
-module.exports = { list, updateRole, remove, disable, enable, createInvite, listInvites, validateInvite };
+module.exports = {
+  list,
+  updateRole,
+  remove,
+  disable,
+  enable,
+  getPlatformRoles,
+  upsertPlatformRole,
+  removePlatformRole,
+  createInvite,
+  listInvites,
+  validateInvite,
+};
