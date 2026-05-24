@@ -61,6 +61,13 @@ function formatLoggedMinutes(value) {
   return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
 }
 
+function linkedCrmLabel(task) {
+  if (task.linked_entity?.customer_name) return `Customer: ${task.linked_entity.customer_name}`;
+  if (task.linked_entity?.label) return `CRM: ${task.linked_entity.label}`;
+  if (task.linked_entity_type) return `CRM: ${task.linked_entity_type.replace(/_/g, ' ')}`;
+  return null;
+}
+
 function TimePanel({ task, entries = [], loading, currentUser, onLogTime, onEditTime, onDeleteTime }) {
   const [minutes, setMinutes] = useState('');
   const [note, setNote] = useState('');
@@ -243,11 +250,7 @@ function TaskRow({
   onEditTime,
   onDeleteTime,
 }) {
-  const linkedReference = task.linked_entity?.label
-    ? `CRM: ${task.linked_entity.label}`
-    : task.linked_entity_type || task.linked_entity_id
-    ? [task.linked_entity_type, task.linked_entity_id].filter(Boolean).join(': ')
-    : null;
+  const linkedReference = linkedCrmLabel(task);
   const linkedSummary = task.linked_entity?.summary;
   const dueDate = formatDueDate(task.due_date);
   const canonicalTaskPath = `/operations/${task.operation_id}?task=${task.id}`;

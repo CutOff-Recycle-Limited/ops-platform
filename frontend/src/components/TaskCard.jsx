@@ -17,10 +17,17 @@ function formatLoggedMinutes(value) {
   return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
 }
 
+function linkedCrmLabel(task) {
+  if (task.linked_entity?.customer_name) return `Customer: ${task.linked_entity.customer_name}`;
+  if (task.linked_entity?.label) return `CRM: ${task.linked_entity.label}`;
+  if (task.linked_entity_type) return `CRM: ${task.linked_entity_type.replace(/_/g, ' ')}`;
+  return null;
+}
+
 export default function TaskCard({ task, operationKey, onClick, onDragStart, onDragEnd }) {
   const isOverdue = task.due_date && isPast(new Date(task.due_date));
   const typeIcon = TYPE_ICONS[task.type] || TYPE_ICONS.task;
-  const crmLabel = task.linked_entity?.source === 'crm' ? task.linked_entity.label : null;
+  const crmLabel = linkedCrmLabel(task);
 
   return (
     <div
@@ -51,7 +58,7 @@ export default function TaskCard({ task, operationKey, onClick, onDragStart, onD
       </p>
       {crmLabel && (
         <p className="text-[11px] text-[#1f4074] font-bold mb-3 truncate">
-          CRM: {crmLabel}
+          {crmLabel}
         </p>
       )}
 
