@@ -11,6 +11,10 @@ async function migrate() {
     await client.query(schema);
     console.log('Schema applied.');
 
+    const sharedSchema = fs.readFileSync(path.join(__dirname, 'shared_database_schema.sql'), 'utf8');
+    await client.query(sharedSchema);
+    console.log('Shared CRM and competitor schema applied.');
+
     // Additive task execution-layer fields for existing databases.
     await client.query(`
       ALTER TABLE tasks

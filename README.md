@@ -213,6 +213,10 @@ Uses native HTML5 drag-and-drop. Optimistic UI updates immediately, then confirm
 - **Manager**: Can manage their assigned operations
 - **Member**: Can view and update tasks in their operations
 
+`users.role` remains the current Ops authorization role. The additive
+`user_platform_roles` table is reserved for cross-platform CRM and competitor
+intelligence permissions.
+
 ### Activity Log
 Every status change, comment, create, and edit is recorded in `activity_logs` and shown in the task detail modal's Activity tab.
 

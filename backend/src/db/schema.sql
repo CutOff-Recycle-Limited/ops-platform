@@ -2,6 +2,8 @@
 -- OPS PLATFORM - PostgreSQL Schema
 -- ============================================================
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- USERS
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -160,3 +162,24 @@ CREATE INDEX IF NOT EXISTS idx_activity_task ON activity_logs(task_id);
 CREATE INDEX IF NOT EXISTS idx_activity_operation ON activity_logs(operation_id);
 CREATE INDEX IF NOT EXISTS idx_activity_actor ON activity_logs(actor_id);
 CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at DESC);
+
+-- CROSS-PLATFORM ROLES
+-- users.role remains the current Ops role. This table is an additive
+-- permission bridge for CRM and competitor intelligence access.
+CREATE TABLE IF NOT EXISTS user_platform_roles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform VARCHAR(50) NOT NULL CHECK (
+    platform IN ('ops', 'crm', 'competitor_intel')
+  ),
+  role VARCHAR(50) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, platform)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_platform_roles_user
+  ON user_platform_roles(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_platform_roles_platform
+  ON user_platform_roles(platform);
