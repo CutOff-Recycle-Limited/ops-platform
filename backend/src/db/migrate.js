@@ -76,6 +76,20 @@ async function migrate() {
     `);
     console.log('invite_tokens table ready.');
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        token VARCHAR(64) UNIQUE NOT NULL,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        used BOOLEAN DEFAULT false,
+        expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '1 hour',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_prt_token ON password_reset_tokens(token)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id)');
+    console.log('password_reset_tokens table ready.');
+
     console.log('\nMigration complete!');
     console.log('No demo data seeded — create your admin account via the app.\n');
   } catch (err) {

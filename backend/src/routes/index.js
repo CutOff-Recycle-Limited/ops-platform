@@ -19,6 +19,8 @@ const usersCtrl = require('../controllers/users.controller');
 // ─── Auth ────────────────────────────────────────────────────────
 router.post('/auth/register', authCtrl.register);
 router.post('/auth/login', authCtrl.login);
+router.post('/auth/forgot-password', authCtrl.forgotPassword);
+router.post('/auth/reset-password', authCtrl.resetPassword);
 router.get('/auth/me', authenticate, authCtrl.me);
 router.get('/auth/users', authenticate, authCtrl.listUsers);
 

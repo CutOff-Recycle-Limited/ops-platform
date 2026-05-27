@@ -1,7 +1,15 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const { Resend } = require('resend');
 const { query, getClient } = require('../db');
 const { generateToken, isAdmin } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/error');
+
+let _resend = null;
+function getResend() {
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY);
+  return _resend;
+}
 
 const register = asyncHandler(async (req, res) => {
   const { name, email, password, invite_token } = req.body;
@@ -127,4 +135,104 @@ const listUsers = asyncHandler(async (req, res) => {
   res.json({ users: result.rows });
 });
 
-module.exports = { register, login, me, listUsers };
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  const userResult = await query(
+    'SELECT id FROM users WHERE email = $1 AND disabled_at IS NULL',
+    [email.toLowerCase()]
+  );
+
+  // Always return the same response to avoid leaking which emails are registered
+  const genericResponse = { message: 'If that email is registered, a reset link has been sent.' };
+
+  if (!userResult.rows.length) return res.json(genericResponse);
+
+  const userId = userResult.rows[0].id;
+  const token = crypto.randomBytes(32).toString('hex');
+
+  // Invalidate any existing unused tokens for this user
+  await query(
+    'UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false',
+    [userId]
+  );
+
+  await query(
+    `INSERT INTO password_reset_tokens (token, user_id)
+     VALUES ($1, $2)`,
+    [token, userId]
+  );
+
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+  await getResend().emails.send({
+    from: process.env.FROM_EMAIL || 'noreply@cutoffrecycle.co.tz',
+    to: email.toLowerCase(),
+    subject: 'Reset your password — CutOff Recycle Ops',
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
+        <img src="https://ops.cutoffrecycle.co.tz/cr-logo.png" alt="CutOff Recycle" style="width: 48px; height: 48px; margin-bottom: 24px;" />
+        <h2 style="font-size: 20px; font-weight: 800; margin: 0 0 8px;">Reset your password</h2>
+        <p style="color: #6b7280; font-size: 14px; margin: 0 0 24px;">
+          We received a request to reset your password. Click the button below to choose a new one.
+          This link expires in <strong>1 hour</strong>.
+        </p>
+        <a href="${resetUrl}"
+          style="display: inline-block; background: #50ad32; color: white; font-weight: 700;
+                 padding: 12px 28px; border-radius: 8px; text-decoration: none; font-size: 14px;">
+          Reset Password
+        </a>
+        <p style="color: #9ca3af; font-size: 12px; margin: 24px 0 0;">
+          If you didn't request this, you can safely ignore this email. Your password won't change.
+        </p>
+      </div>
+    `,
+  });
+
+  res.json(genericResponse);
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
+  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    const tokenResult = await client.query(
+      `SELECT * FROM password_reset_tokens
+       WHERE token = $1 AND used = false AND expires_at > NOW()
+       FOR UPDATE`,
+      [token]
+    );
+    if (!tokenResult.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+    }
+
+    const tokenRow = tokenResult.rows[0];
+    const hash = await bcrypt.hash(password, 10);
+
+    await client.query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [hash, tokenRow.user_id]
+    );
+    await client.query(
+      'UPDATE password_reset_tokens SET used = true WHERE id = $1',
+      [tokenRow.id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: 'Password updated successfully.' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+});
+
+module.exports = { register, login, me, listUsers, forgotPassword, resetPassword };

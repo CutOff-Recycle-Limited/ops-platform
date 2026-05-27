@@ -111,10 +111,8 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE INDEX IF NOT EXISTS idx_tasks_operation ON tasks(operation_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
-CREATE INDEX IF NOT EXISTS idx_tasks_linked_entity ON tasks(linked_entity_type, linked_entity_id);
 
 -- COMMENTS
 CREATE TABLE IF NOT EXISTS comments (
@@ -161,8 +159,20 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 
 CREATE INDEX IF NOT EXISTS idx_activity_task ON activity_logs(task_id);
 CREATE INDEX IF NOT EXISTS idx_activity_operation ON activity_logs(operation_id);
-CREATE INDEX IF NOT EXISTS idx_activity_actor ON activity_logs(actor_id);
 CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at DESC);
+
+-- PASSWORD RESET TOKENS
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  token VARCHAR(64) UNIQUE NOT NULL,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  used BOOLEAN DEFAULT false,
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '1 hour',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_prt_token ON password_reset_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id);
 
 -- CROSS-PLATFORM ROLES
 -- users.role remains the current Ops role. This table is an additive
