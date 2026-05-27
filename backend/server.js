@@ -7,8 +7,22 @@ const { errorHandler } = require('./src/middleware/error');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map(s => s.trim());
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const isPreviewDeploy =
+      process.env.VERCEL_ENV === 'preview' &&
+      /^https:\/\/ops-platform-frontend[a-z0-9-]*\.vercel\.app$/.test(origin);
+    if (allowedOrigins.includes(origin) || isPreviewDeploy) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
